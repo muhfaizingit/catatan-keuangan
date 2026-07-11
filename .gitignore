@@ -1,0 +1,24 @@
+# Env & secrets
+.env
+
+# Binaries
+*.exe
+*.exe~
+/tmp/
+/bin/
+
+# One-off reset script (not part of the app)
+/cmd_reset/
+
+# Air live-reload
+.air.toml
+.air.toml.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json

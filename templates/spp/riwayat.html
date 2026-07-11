@@ -1,0 +1,85 @@
+{{ define "spp/riwayat" }}
+{{ template "components/modal_start" . }}
+<div id="riwayat-body">
+  {{ template "spp/riwayat_body" . }}
+</div>
+{{ template "components/modal_end" . }}
+{{ end }}
+
+
+{{ define "spp/riwayat_body" }}
+<div class="mb-4 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+  <div class="flex items-center justify-between">
+    <div>
+      <p class="font-medium text-slate-800">{{ .Tagihan.Siswa.Nama }} <span class="text-slate-400 font-mono text-xs">{{ .Tagihan.Siswa.NIS }}</span></p>
+      <p class="text-xs text-slate-500">SPP {{ namaBulan .Tagihan.Bulan }} · Tagihan {{ rupiah .Tagihan.Jumlah }}</p>
+    </div>
+    {{ template "spp/status_badge" .Tagihan.Status }}
+  </div>
+  <div class="mt-2 flex items-center gap-4 text-sm">
+    <span class="text-slate-600">Dibayar: <span class="font-semibold text-green-600">{{ rupiah .Paid }}</span></span>
+    <span class="text-slate-600">Sisa: <span class="font-semibold {{ if gt .Sisa 0 }}text-red-600{{ else }}text-green-600{{ end }}">{{ rupiah .Sisa }}</span></span>
+  </div>
+</div>
+
+{{ if and .CanEdit (gt .Sisa 0) (not .TAClosed) }}
+<div class="mb-3">
+  <button hx-get="{{ printf "/spp/bayar/%d?kelas=%s&bulan=%s" .Tagihan.ID .Kelas .Bulan }}" hx-target="#modal-root" hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary-700">
+    + Tambah Pembayaran
+  </button>
+</div>
+{{ else if .TAClosed }}
+<div class="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+  Tahun ajaran ini sudah ditutup (dikunci). Pembayaran hanya bisa dilakukan lewat menu <span class="font-medium">Piutang</span>.
+</div>
+{{ end }}
+
+<p class="text-xs font-medium uppercase tracking-wide text-slate-400 mb-2">Riwayat Pembayaran</p>
+{{ if not .Payments }}
+<p class="text-sm text-slate-400 py-4 text-center">Belum ada pembayaran.</p>
+{{ else }}
+<div class="overflow-hidden rounded-lg border border-slate-200">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs text-slate-500 bg-slate-50 border-b border-slate-200">
+        <th class="px-3 py-2 font-medium">Tanggal</th>
+        <th class="px-3 py-2 font-medium text-right">Jumlah</th>
+        <th class="px-3 py-2 font-medium">Keterangan</th>
+        {{ if .CanEdit }}<th class="px-3 py-2"></th>{{ end }}
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {{ $tid := .Tagihan.ID }}{{ $k := .Kelas }}{{ $b := .Bulan }}{{ $canEdit := .CanEdit }}
+      {{ range .Payments }}
+      <tr>
+        <td class="px-3 py-2 text-slate-600 whitespace-nowrap">{{ tanggal .Tanggal }}</td>
+        <td class="px-3 py-2 text-right font-medium text-slate-800 whitespace-nowrap">{{ rupiah .JumlahBayar }}</td>
+        <td class="px-3 py-2 text-slate-500">
+          {{ if .DariBantuan }}<span class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">bantuan</span> {{ end }}
+          {{ if .Keterangan }}{{ .Keterangan }}{{ else if not .DariBantuan }}<span class="text-slate-300">—</span>{{ end }}
+        </td>
+        {{ if and $canEdit (not $.TAClosed) }}
+        <td class="px-3 py-2 text-right">
+          <button hx-delete="{{ printf "/spp/pembayaran/%d?tagihan=%d&kelas=%s&bulan=%s" .ID $tid $k $b }}"
+                  hx-target="#modal-root" hx-swap="innerHTML"
+                  hx-confirm="Hapus pembayaran {{ rupiah .JumlahBayar }} ({{ tanggal .Tanggal }})? Baris kas terkait ikut terhapus."
+                  class="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Hapus</button>
+        </td>
+        {{ end }}
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ end }}
+{{ end }}
+
+
+{{/* Dipakai setelah hapus: render ulang modal + OOB refresh daftar utama */}}
+{{ define "spp/riwayat_after" }}
+{{ template "spp/riwayat" . }}
+<div id="spp-content" hx-swap-oob="true">
+  {{ template "spp/pembayaran_content" .List }}
+</div>
+{{ end }}

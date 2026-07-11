@@ -1,0 +1,24 @@
+{{ define "master/tabs" }}
+<div class="mb-5">
+  <h2 class="text-lg font-semibold text-slate-800 mb-3">Master Data</h2>
+  <div class="flex flex-wrap gap-1 border-b border-slate-200">
+    {{ $a := .ActiveTab }}
+    {{ template "master/tab_link" dict "Active" $a "Key" "tahun-ajaran" "Href" "/master/tahun-ajaran" "Label" "Tahun Ajaran" }}
+    {{ template "master/tab_link" dict "Active" $a "Key" "kelas" "Href" "/master/kelas" "Label" "Kelas" }}
+    {{ template "master/tab_link" dict "Active" $a "Key" "siswa" "Href" "/master/siswa" "Label" "Siswa" }}
+    {{ template "master/tab_link" dict "Active" $a "Key" "jenis-pemasukan" "Href" "/master/jenis-pemasukan" "Label" "Jenis Pemasukan" }}
+    {{ template "master/tab_link" dict "Active" $a "Key" "kategori" "Href" "/master/kategori" "Label" "Kategori Pengeluaran" }}
+    {{ template "master/tab_link" dict "Active" $a "Key" "donatur" "Href" "/master/donatur" "Label" "Donatur" }}
+    {{ template "master/tab_link" dict "Active" $a "Key" "guru" "Href" "/master/guru" "Label" "Guru" }}
+    {{ template "master/tab_link" dict "Active" $a "Key" "jenis-tagihan" "Href" "/master/jenis-tagihan" "Label" "Jenis Tagihan" }}
+  </div>
+</div>
+{{ end }}
+
+{{ define "master/tab_link" }}
+<a href="{{ .Href }}"
+   class="-mb-px border-b-2 px-3 py-2 text-sm font-medium transition
+   {{ if eq .Active .Key }}border-primary-600 text-primary-700{{ else }}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300{{ end }}">
+  {{ .Label }}
+</a>
+{{ end }}

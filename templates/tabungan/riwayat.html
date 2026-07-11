@@ -1,0 +1,74 @@
+{{ define "tabungan/riwayat" }}
+{{ template "components/modal_start" . }}
+<div id="tabungan-riwayat-body">
+  {{ template "tabungan/riwayat_body" . }}
+</div>
+{{ template "components/modal_end" . }}
+{{ end }}
+
+
+{{ define "tabungan/riwayat_body" }}
+<div class="mb-4 rounded-lg bg-primary-50 border border-primary-200 px-4 py-3">
+  <p class="font-medium text-slate-800">{{ .Siswa.Nama }} <span class="text-slate-400 font-mono text-xs">{{ .Siswa.NIS }}</span></p>
+  <p class="mt-1 text-sm">Saldo tabungan (setoran penuh): <span class="font-bold text-primary-800">{{ rupiah .Saldo }}</span></p>
+</div>
+
+<!-- Filter bulan (tahun ajaran aktif) -->
+<div class="mb-3 flex items-center gap-2">
+  <label class="text-xs font-medium text-slate-500">Bulan</label>
+  <select name="bulan" hx-get="{{ printf "/tabungan/riwayat/%d?kelas=%s&partial=1" .Siswa.ID .Kelas }}"
+          hx-target="#tabungan-riwayat-body" hx-swap="innerHTML" hx-trigger="change"
+          class="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200">
+    <option value="0">Semua bulan</option>
+    {{ $b := .Bulan }}
+    {{ range seq 12 }}<option value="{{ . }}" {{ if eq . $b }}selected{{ end }}>{{ namaBulan . }}</option>{{ end }}
+  </select>
+  {{ if and (ge .Bulan 1) (le .Bulan 12) }}
+  <span class="text-xs text-slate-500">Subtotal bulan ini: <span class="font-medium text-slate-700">{{ rupiah .Subtotal }}</span></span>
+  {{ end }}
+</div>
+
+{{ if not .List }}
+<p class="text-sm text-slate-400 py-4 text-center">{{ if and (ge .Bulan 1) (le .Bulan 12) }}Tidak ada setoran pada bulan ini.{{ else }}Belum ada setoran.{{ end }}</p>
+{{ else }}
+<div class="overflow-hidden rounded-lg border border-slate-200 max-h-72 overflow-y-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs text-slate-500 bg-slate-50 border-b border-slate-200">
+        <th class="px-3 py-2 font-medium">Tanggal</th>
+        <th class="px-3 py-2 font-medium text-right">Setor</th>
+        <th class="px-3 py-2 font-medium text-right">Potong (perkiraan)</th>
+        <th class="px-3 py-2 font-medium text-right">Bersih</th>
+        {{ if .CanEdit }}<th class="px-3 py-2"></th>{{ end }}
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {{ $k := .Kelas }}{{ $bl := .Bulan }}{{ $canEdit := .CanEdit }}
+      {{ range .List }}
+      <tr>
+        <td class="px-3 py-2 text-slate-600 whitespace-nowrap">{{ tanggal .Tanggal }}</td>
+        <td class="px-3 py-2 text-right font-medium text-primary-700 whitespace-nowrap">{{ rupiah .JumlahSetor }}</td>
+        <td class="px-3 py-2 text-right text-amber-600 whitespace-nowrap">{{ rupiah .JumlahPotong }} <span class="text-[10px] text-slate-400">({{ .PersenPotong }}%)</span></td>
+        <td class="px-3 py-2 text-right text-slate-600 whitespace-nowrap">{{ rupiah .JumlahBersih }}</td>
+        {{ if $canEdit }}
+        <td class="px-3 py-2 text-right">
+          <button hx-delete="{{ printf "/tabungan/setoran/%d?kelas=%s&bulan=%d" .ID $k $bl }}" hx-target="#modal-root" hx-swap="innerHTML"
+                  hx-confirm="Hapus setoran {{ rupiah .JumlahSetor }} ({{ tanggal .Tanggal }})?"
+                  class="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Hapus</button>
+        </td>
+        {{ end }}
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ end }}
+{{ end }}
+
+
+{{ define "tabungan/riwayat_after" }}
+{{ template "tabungan/riwayat" . }}
+<div id="tabungan-content" hx-swap-oob="true">
+  {{ template "tabungan/content" .List2 }}
+</div>
+{{ end }}

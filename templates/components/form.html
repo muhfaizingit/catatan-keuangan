@@ -1,0 +1,18 @@
+{{ define "components/form_footer" }}
+<div class="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+  <button type="button" onclick="closeModal()"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
+    Batal
+  </button>
+  <button type="submit"
+          class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700">
+    {{ if .SubmitLabel }}{{ .SubmitLabel }}{{ else }}Simpan{{ end }}
+  </button>
+</div>
+{{ end }}
+
+{{ define "components/form_error" }}
+{{ if . }}
+<div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ . }}</div>
+{{ end }}
+{{ end }}

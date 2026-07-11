@@ -1,0 +1,41 @@
+{{ define "spp/bantuan_detail" }}
+{{ template "components/modal_start" . }}
+
+<div class="mb-4 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+  <p class="font-medium text-slate-800">{{ .Dana.Donatur.Nama }}</p>
+  <p class="text-xs text-slate-500">{{ tanggal .Dana.Tanggal }} · {{ .Dana.JumlahSlot }} slot · Rp {{ ribuan .Dana.NominalDonatur }}/bulan (SPP Rp {{ ribuan .Dana.NominalSPP }})</p>
+  <div class="mt-2 flex flex-wrap gap-4 text-sm">
+    <span class="text-slate-600">Diterima: <span class="font-semibold text-slate-800">{{ rupiah .Dana.JumlahDiterima }}</span></span>
+    <span class="text-slate-600">Untuk SPP: <span class="font-semibold text-green-600">{{ rupiah .Dana.TotalKeSPP }}</span></span>
+    <span class="text-slate-600">Donasi: <span class="font-semibold text-blue-600">{{ rupiah .Dana.TotalDonasi }}</span></span>
+  </div>
+</div>
+
+<p class="text-xs font-medium uppercase tracking-wide text-slate-400 mb-2">Rincian Alokasi SPP</p>
+{{ if not .Baris }}
+<p class="text-sm text-slate-400 py-3 text-center">Tidak ada alokasi SPP (seluruh dana jadi donasi).</p>
+{{ else }}
+<div class="overflow-hidden rounded-lg border border-slate-200 max-h-72 overflow-y-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs text-slate-500 bg-slate-50 border-b border-slate-200">
+        <th class="px-3 py-2 font-medium">Siswa</th>
+        <th class="px-3 py-2 font-medium">Bulan</th>
+        <th class="px-3 py-2 font-medium text-right">Dialokasikan</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {{ range .Baris }}
+      <tr>
+        <td class="px-3 py-2 text-slate-700">{{ .Siswa }}</td>
+        <td class="px-3 py-2 text-slate-600">{{ namaBulan .Bulan }}</td>
+        <td class="px-3 py-2 text-right font-medium text-slate-800 whitespace-nowrap">{{ rupiah .Jumlah }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ end }}
+
+{{ template "components/modal_end" . }}
+{{ end }}

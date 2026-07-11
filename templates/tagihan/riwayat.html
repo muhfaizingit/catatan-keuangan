@@ -1,0 +1,80 @@
+{{ define "tagihan/riwayat" }}
+{{ template "components/modal_start" . }}
+<div id="tagihan-riwayat-body">
+  {{ template "tagihan/riwayat_body" . }}
+</div>
+{{ template "components/modal_end" . }}
+{{ end }}
+
+
+{{ define "tagihan/riwayat_body" }}
+<div class="mb-4 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+  <div class="flex items-center justify-between">
+    <div>
+      <p class="font-medium text-slate-800">{{ .Tagihan.Siswa.Nama }}</p>
+      <p class="text-xs text-slate-500">{{ .Tagihan.JenisTagihan.Nama }} · Nominal {{ rupiah .Tagihan.Nominal }}</p>
+    </div>
+    {{ template "tagihan/status_badge" .Tagihan.Status }}
+  </div>
+  <div class="mt-2 flex items-center gap-4 text-sm">
+    <span class="text-slate-600">Dibayar: <span class="font-semibold text-green-600">{{ rupiah .Paid }}</span></span>
+    <span class="text-slate-600">Sisa: <span class="font-semibold {{ if gt .Sisa 0 }}text-red-600{{ else }}text-green-600{{ end }}">{{ rupiah .Sisa }}</span></span>
+  </div>
+</div>
+
+{{ if and .CanEdit (gt .Sisa 0) (not .TAClosed) }}
+<div class="mb-3">
+  <button hx-get="{{ printf "/tagihan/%d/bayar?jenis=%s&kelas=%s" .Tagihan.ID .Jenis .Kelas }}" hx-target="#modal-root" hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary-700">
+    + Tambah Pembayaran
+  </button>
+</div>
+{{ else if .TAClosed }}
+<div class="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+  Tahun ajaran ini sudah ditutup (dikunci). Pembayaran hanya bisa dilakukan lewat menu <span class="font-medium">Piutang</span>.
+</div>
+{{ end }}
+
+<p class="text-xs font-medium uppercase tracking-wide text-slate-400 mb-2">Riwayat Pembayaran</p>
+{{ if not .Payments }}
+<p class="text-sm text-slate-400 py-4 text-center">Belum ada pembayaran.</p>
+{{ else }}
+<div class="overflow-hidden rounded-lg border border-slate-200">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs text-slate-500 bg-slate-50 border-b border-slate-200">
+        <th class="px-3 py-2 font-medium">Tanggal</th>
+        <th class="px-3 py-2 font-medium text-right">Jumlah</th>
+        <th class="px-3 py-2 font-medium">Keterangan</th>
+        {{ if and .CanEdit (not .TAClosed) }}<th class="px-3 py-2"></th>{{ end }}
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {{ $j := .Jenis }}{{ $k := .Kelas }}{{ $canEdit := .CanEdit }}
+      {{ range .Payments }}
+      <tr>
+        <td class="px-3 py-2 text-slate-600 whitespace-nowrap">{{ tanggal .Tanggal }}</td>
+        <td class="px-3 py-2 text-right font-medium text-slate-800 whitespace-nowrap">{{ rupiah .JumlahBayar }}</td>
+        <td class="px-3 py-2 text-slate-500">{{ if .Keterangan }}{{ .Keterangan }}{{ else }}<span class="text-slate-300">—</span>{{ end }}</td>
+        {{ if and $canEdit (not $.TAClosed) }}
+        <td class="px-3 py-2 text-right">
+          <button hx-delete="{{ printf "/tagihan/pembayaran/%d?jenis=%s&kelas=%s" .ID $j $k }}" hx-target="#modal-root" hx-swap="innerHTML"
+                  hx-confirm="Hapus pembayaran {{ rupiah .JumlahBayar }} ({{ tanggal .Tanggal }})? Baris kas terkait ikut terhapus."
+                  class="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Hapus</button>
+        </td>
+        {{ end }}
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ end }}
+{{ end }}
+
+
+{{ define "tagihan/riwayat_after" }}
+{{ template "tagihan/riwayat" . }}
+<div id="tagihan-content" hx-swap-oob="true">
+  {{ template "tagihan/list_content" .List }}
+</div>
+{{ end }}

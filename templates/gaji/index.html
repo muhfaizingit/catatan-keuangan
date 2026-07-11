@@ -1,0 +1,104 @@
+{{ define "gaji/index" }}
+{{ template "partials/page_start" . }}
+<h2 class="text-lg font-semibold text-slate-800 mb-4">Gaji Guru</h2>
+<p class="text-sm text-slate-500 -mt-2 mb-4">Kewajiban & pembayaran gaji guru per bulan. Gaji yang telat dibayar menjadi hutang sekolah (payable) yang bisa dicicil.</p>
+<div id="gaji-content">
+  {{ template "gaji/content" . }}
+</div>
+{{ template "partials/page_end" . }}
+{{ end }}
+
+
+{{ define "gaji/content" }}
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+  <div class="rounded-xl border border-slate-200 bg-white p-4">
+    <p class="text-xs text-slate-500">Total Gaji</p><p class="mt-1 text-lg font-bold text-slate-800">{{ rupiah .TotalGaji }}</p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4">
+    <p class="text-xs text-slate-500">Dibayar</p><p class="mt-1 text-lg font-bold text-green-600">{{ rupiah .TotalBayar }}</p>
+  </div>
+  <div class="rounded-xl border border-red-200 bg-red-50 p-4">
+    <p class="text-xs text-red-700">Sisa (Hutang)</p><p class="mt-1 text-lg font-bold text-red-700">{{ rupiah .TotalSisa }}</p>
+  </div>
+  <div class="rounded-xl border border-primary-200 bg-primary-50 p-4">
+    <p class="text-xs text-primary-700">Bulan</p><p class="mt-1 text-lg font-bold text-primary-800">{{ namaBulan .Bulan }}</p>
+  </div>
+</div>
+
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <form hx-get="/gaji" hx-target="#gaji-content" hx-swap="innerHTML" hx-trigger="change" class="flex flex-wrap items-end gap-3">
+    <input type="hidden" name="partial" value="1" />
+    <div>
+      <label class="block text-xs font-medium text-slate-500 mb-1">Bulan</label>
+      <select name="bulan" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200">
+        {{ $b := .Bulan }}
+        {{ range seq 12 }}<option value="{{ . }}" {{ if eq . $b }}selected{{ end }}>{{ namaBulan . }}</option>{{ end }}
+      </select>
+    </div>
+  </form>
+
+  {{ if .CanEdit }}
+  <button hx-get="{{ printf "/gaji/generate?bulan=%d" .Bulan }}" hx-target="#modal-root" hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-900">
+    Terbitkan Gaji Bulanan
+  </button>
+  {{ end }}
+</div>
+
+<div class="rounded-xl border border-slate-200 bg-white overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100">
+        <th class="px-5 py-3 font-medium">Guru</th>
+        <th class="px-5 py-3 font-medium text-right">Gaji</th>
+        <th class="px-5 py-3 font-medium text-right">Dibayar</th>
+        <th class="px-5 py-3 font-medium text-right">Sisa</th>
+        <th class="px-5 py-3 font-medium">Status</th>
+        <th class="px-5 py-3 font-medium text-right">Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="gaji-rows" class="divide-y divide-slate-100">
+      {{ template "gaji/rows" . }}
+    </tbody>
+  </table>
+</div>
+{{ end }}
+
+
+{{ define "gaji/rows" }}
+{{ if not .Rows }}
+<tr><td colspan="6" class="px-5 py-10 text-center text-slate-400">Belum ada guru aktif atau gaji untuk bulan ini.</td></tr>
+{{ end }}
+{{ $b := .Bulan }}{{ $canEdit := .CanEdit }}
+{{ range .Rows }}
+<tr class="hover:bg-slate-50">
+  <td class="px-5 py-3 font-medium text-slate-800">{{ .Guru.Nama }}</td>
+  {{ if .Gaji.ID }}
+  <td class="px-5 py-3 text-right text-slate-600 whitespace-nowrap">{{ rupiah .Gaji.Jumlah }}</td>
+  <td class="px-5 py-3 text-right text-slate-600 whitespace-nowrap">{{ rupiah .Paid }}</td>
+  <td class="px-5 py-3 text-right font-semibold whitespace-nowrap {{ if gt .Sisa 0 }}text-red-600{{ else }}text-green-600{{ end }}">{{ rupiah .Sisa }}</td>
+  <td class="px-5 py-3">{{ template "tagihan/status_badge" .Gaji.Status }}</td>
+  <td class="px-5 py-3 text-right">
+    <div class="flex items-center justify-end gap-1">
+      <button hx-get="{{ printf "/gaji/%d/riwayat?bulan=%d" .Gaji.ID $b }}" hx-target="#modal-root" hx-swap="innerHTML"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">Riwayat</button>
+      {{ if and $canEdit (gt .Sisa 0) }}
+      <button hx-get="{{ printf "/gaji/%d/bayar?bulan=%d" .Gaji.ID $b }}" hx-target="#modal-root" hx-swap="innerHTML"
+              class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">Bayar</button>
+      {{ end }}
+    </div>
+  </td>
+  {{ else }}
+  <td class="px-5 py-3 text-right text-slate-300" colspan="4">Belum diterbitkan</td>
+  <td class="px-5 py-3 text-right text-slate-300">—</td>
+  {{ end }}
+</tr>
+{{ end }}
+{{ end }}
+
+
+{{ define "gaji/content_oob" }}
+<div id="gaji-content" hx-swap-oob="true">
+  {{ template "gaji/content" . }}
+</div>
+{{ end }}

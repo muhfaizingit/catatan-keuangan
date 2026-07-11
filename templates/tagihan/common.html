@@ -1,0 +1,23 @@
+{{ define "tagihan/tabs" }}
+<div class="mb-5">
+  <h2 class="text-lg font-semibold text-slate-800 mb-3">Tagihan</h2>
+  <div class="flex flex-wrap gap-1 border-b border-slate-200">
+    {{ $a := .ActiveTab }}
+    <a href="/tagihan" class="-mb-px border-b-2 px-3 py-2 text-sm font-medium transition {{ if eq $a "daftar" }}border-primary-600 text-primary-700{{ else }}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300{{ end }}">Daftar & Bayar</a>
+    <a href="/tagihan/tunggakan" class="-mb-px border-b-2 px-3 py-2 text-sm font-medium transition {{ if eq $a "tunggakan" }}border-primary-600 text-primary-700{{ else }}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300{{ end }}">Tunggakan</a>
+  </div>
+</div>
+{{ end }}
+
+{{ define "tagihan/status_badge" }}
+{{ if eq (printf "%s" .) "lunas" }}<span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">Lunas</span>
+{{ else if eq (printf "%s" .) "cicil" }}<span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">Cicil</span>
+{{ else }}<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">Belum</span>{{ end }}
+{{ end }}
+
+{{ define "tagihan/no_ta" }}
+<div class="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700">
+  Belum ada tahun ajaran aktif / kelas / siswa. Lengkapi dulu di
+  <a href="/master/tahun-ajaran" class="underline font-medium">Master Data</a>.
+</div>
+{{ end }}

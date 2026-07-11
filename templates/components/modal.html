@@ -1,0 +1,21 @@
+{{ define "components/modal_start" }}
+<div class="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto"
+     onclick="if(event.target===this) closeModal()">
+  <div class="fixed inset-0 bg-slate-900/50"></div>
+  <div class="relative mt-10 w-full max-w-lg rounded-2xl bg-white shadow-xl">
+    <div class="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
+      <h3 class="font-semibold text-slate-800">{{ .Title }}</h3>
+      <button type="button" onclick="closeModal()" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Tutup">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div class="px-5 py-4">
+{{ end }}
+
+{{ define "components/modal_end" }}
+    </div>
+  </div>
+</div>
+{{ end }}

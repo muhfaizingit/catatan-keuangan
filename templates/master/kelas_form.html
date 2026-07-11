@@ -1,0 +1,30 @@
+{{ define "master/kelas_form" }}
+{{ template "components/modal_start" . }}
+<form {{ if .Edit }}hx-put{{ else }}hx-post{{ end }}="{{ .Action }}" hx-target="#modal-root" hx-swap="innerHTML">
+  {{ template "components/form_error" .Error }}
+
+  <div class="mb-4">
+    <label class="block text-sm font-medium text-slate-700 mb-1">Nama Kelas</label>
+    <input name="nama" value="{{ .Item.Nama }}" required placeholder="contoh: Kelas 1A"
+           class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+  </div>
+
+  <div class="mb-2">
+    <label class="block text-sm font-medium text-slate-700 mb-1">Tahun Ajaran</label>
+    <select name="tahun_ajaran_id" required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none">
+      <option value="">— Pilih tahun ajaran —</option>
+      {{ $sel := .Item.TahunAjaranID }}
+      {{ range .TahunList }}
+      <option value="{{ .ID }}" {{ if eq .ID $sel }}selected{{ end }}>{{ .Nama }}{{ if .Aktif }} (aktif){{ end }}</option>
+      {{ end }}
+    </select>
+    {{ if not .TahunList }}
+    <p class="mt-1 text-xs text-amber-600">Belum ada tahun ajaran. Buat dulu di tab Tahun Ajaran.</p>
+    {{ end }}
+  </div>
+
+  {{ template "components/form_footer" . }}
+</form>
+{{ template "components/modal_end" . }}
+{{ end }}

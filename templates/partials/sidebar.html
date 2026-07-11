@@ -1,0 +1,66 @@
+{{ define "partials/sidebar" }}
+{{ $role := "" }}{{ with .User }}{{ $role = .Role }}{{ end }}
+{{ $active := .ActiveMenu }}
+<div id="sidebar-backdrop" onclick="toggleSidebar()"
+     class="hidden fixed inset-0 z-30 bg-slate-900/50 lg:hidden"></div>
+
+<aside id="sidebar"
+       class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full lg:translate-x-0
+              transform bg-slate-900 text-slate-300 transition-transform duration-200 flex flex-col">
+  <!-- Brand -->
+  <div class="h-16 flex items-center gap-2 px-5 border-b border-slate-800">
+    <div class="h-8 w-8 rounded-lg bg-primary-600 flex items-center justify-center text-white font-bold">K</div>
+    <div class="leading-tight">
+      <div class="text-white font-semibold text-sm">Keuangan Sekolah</div>
+      <div class="text-[11px] text-slate-400">Manajemen Keuangan</div>
+    </div>
+  </div>
+
+  <!-- Menu -->
+  <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1 text-sm">
+    {{ template "partials/nav_item" dict "Active" $active "Key" "dashboard" "Href" "/dashboard" "Label" "Dashboard" "Soon" false }}
+
+    {{ if eq $role "admin" }}
+    <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Master Data</p>
+    {{ template "partials/nav_item" dict "Active" $active "Key" "master" "Href" "/master/tahun-ajaran" "Label" "Master Data" "Soon" false }}
+    {{ end }}
+
+    <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Transaksi</p>
+    {{ template "partials/nav_item" dict "Active" $active "Key" "kas" "Href" "/kas/pemasukan" "Label" "Kas Sekolah" "Soon" false }}
+    {{ template "partials/nav_item" dict "Active" $active "Key" "spp" "Href" "/spp/pembayaran" "Label" "SPP" "Soon" false }}
+    {{ template "partials/nav_item" dict "Active" $active "Key" "tagihan" "Href" "/tagihan" "Label" "Tagihan" "Soon" false }}
+    {{ template "partials/nav_item" dict "Active" $active "Key" "tabungan" "Href" "/tabungan" "Label" "Tabungan" "Soon" false }}
+    {{ template "partials/nav_item" dict "Active" $active "Key" "piutang" "Href" "/piutang" "Label" "Piutang" "Soon" false }}
+    {{ template "partials/nav_item" dict "Active" $active "Key" "gaji" "Href" "/gaji" "Label" "Gaji Guru" "Soon" false }}
+
+    {{ if eq $role "admin" }}
+    {{ template "partials/nav_item" dict "Active" $active "Key" "tutup" "Href" "/tutup-tahun" "Label" "Tutup Tahun" "Soon" false }}
+    {{ end }}
+
+    <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lainnya</p>
+    {{ template "partials/nav_item" dict "Active" $active "Key" "laporan" "Href" "/laporan/kas" "Label" "Laporan" "Soon" true }}
+    {{ if eq $role "admin" }}
+    {{ template "partials/nav_item" dict "Active" $active "Key" "setting" "Href" "/setting" "Label" "Pengaturan" "Soon" true }}
+    {{ end }}
+  </nav>
+
+  <div class="px-4 py-3 border-t border-slate-800 text-[11px] text-slate-500">
+    v0.1 · Phase 1
+  </div>
+</aside>
+{{ end }}
+
+{{ define "partials/nav_item" }}
+{{ if .Soon }}
+<span class="flex items-center justify-between rounded-lg px-3 py-2 text-slate-500 cursor-not-allowed select-none">
+  <span>{{ .Label }}</span>
+  <span class="text-[10px] rounded bg-slate-800 px-1.5 py-0.5">segera</span>
+</span>
+{{ else }}
+<a href="{{ .Href }}"
+   class="flex items-center rounded-lg px-3 py-2 font-medium transition
+   {{ if eq .Active .Key }}bg-primary-600 text-white{{ else }}text-slate-300 hover:bg-slate-800 hover:text-white{{ end }}">
+  {{ .Label }}
+</a>
+{{ end }}
+{{ end }}

@@ -1,0 +1,27 @@
+{{ define "partials/topbar" }}
+<header class="h-16 bg-white border-b border-slate-200 sticky top-0 z-20 flex items-center gap-3 px-4 sm:px-6">
+  <button onclick="toggleSidebar()" class="lg:hidden p-2 -ml-2 rounded-lg hover:bg-slate-100" aria-label="Menu">
+    <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  </button>
+
+  <h1 class="text-base font-semibold text-slate-800 truncate">{{ .Title }}</h1>
+
+  <div class="ml-auto flex items-center gap-3">
+    {{ with .User }}
+    <div class="text-right leading-tight hidden sm:block">
+      <div class="text-sm font-medium text-slate-800">{{ .Nama }}</div>
+      <div class="text-[11px] text-slate-500 capitalize">{{ .Role }}</div>
+    </div>
+    <div class="h-9 w-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-semibold">
+      {{ slice .Nama 0 1 }}
+    </div>
+    {{ end }}
+    <a href="/logout"
+       class="ml-1 inline-flex items-center rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+      Keluar
+    </a>
+  </div>
+</header>
+{{ end }}

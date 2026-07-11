@@ -1,0 +1,75 @@
+{{ define "master/jenis_pemasukan" }}
+{{ template "partials/page_start" . }}
+{{ template "master/tabs" . }}
+
+<div class="rounded-xl border border-slate-200 bg-white">
+  <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+    <h3 class="font-semibold text-slate-800">Jenis Pemasukan</h3>
+    <button hx-get="/master/jenis-pemasukan/new" hx-target="#modal-root" hx-swap="innerHTML"
+            class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Tambah
+    </button>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100">
+          <th class="px-5 py-3 font-medium">Nama</th>
+          <th class="px-5 py-3 font-medium">Keterangan</th>
+          <th class="px-5 py-3 font-medium">Status</th>
+          <th class="px-5 py-3 font-medium text-right">Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="jenis-rows" class="divide-y divide-slate-100">
+        {{ template "master/jenis_pemasukan_rows" dict "List" .List }}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{{ template "partials/page_end" . }}
+{{ end }}
+
+
+{{ define "master/jenis_pemasukan_rows" }}
+{{ if not .List }}
+<tr><td colspan="4" class="px-5 py-10 text-center text-slate-400">Belum ada jenis pemasukan.</td></tr>
+{{ end }}
+{{ range .List }}
+<tr class="hover:bg-slate-50">
+  <td class="px-5 py-3 font-medium text-slate-800">
+    {{ .Nama }}
+    {{ if .IsSistem }}<span class="ml-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">sistem</span>{{ end }}
+  </td>
+  <td class="px-5 py-3 text-slate-500">{{ if .Keterangan }}{{ .Keterangan }}{{ else }}<span class="text-slate-400">—</span>{{ end }}</td>
+  <td class="px-5 py-3">
+    {{ if .Aktif }}
+      <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">Aktif</span>
+    {{ else }}
+      <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">Non-aktif</span>
+    {{ end }}
+  </td>
+  <td class="px-5 py-3">
+    <div class="flex items-center justify-end gap-1">
+      {{ if .IsSistem }}
+      <span class="text-slate-400 text-xs" title="Jenis bawaan sistem, tidak dapat diubah">terkunci</span>
+      {{ else }}
+      <button hx-get="/master/jenis-pemasukan/{{ .ID }}/edit" hx-target="#modal-root" hx-swap="innerHTML"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-50">Edit</button>
+      <button hx-delete="/master/jenis-pemasukan/{{ .ID }}" hx-swap="none"
+              hx-confirm="Hapus jenis “{{ .Nama }}”?"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50">Hapus</button>
+      {{ end }}
+    </div>
+  </td>
+</tr>
+{{ end }}
+{{ end }}
+
+
+{{ define "master/jenis_pemasukan_rows_oob" }}
+<tbody id="jenis-rows" hx-swap-oob="true" class="divide-y divide-slate-100">
+  {{ template "master/jenis_pemasukan_rows" dict "List" .List }}
+</tbody>
+{{ end }}

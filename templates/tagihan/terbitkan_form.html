@@ -1,0 +1,97 @@
+{{ define "tagihan/terbitkan_form" }}
+{{ template "components/modal_start" . }}
+<form hx-post="/tagihan/terbitkan" hx-target="#modal-root" hx-swap="innerHTML">
+  {{ template "components/form_error" .Error }}
+
+  {{ if not .HasTA }}
+  <p class="text-sm text-amber-600">Belum ada tahun ajaran aktif.</p>
+  {{ else }}
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Jenis Tagihan</label>
+      <select name="jenis_tagihan_id" required
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200">
+        <option value="">— Pilih jenis —</option>
+        {{ $sj := .Jenis }}
+        {{ range .JenisList }}<option value="{{ .ID }}" {{ if eq (printf "%d" .ID) $sj }}selected{{ end }}>{{ .Nama }}</option>{{ end }}
+      </select>
+      {{ if not .JenisList }}<p class="mt-1 text-xs text-amber-600">Belum ada jenis tagihan. Tambah di Master → Jenis Tagihan.</p>{{ end }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Tanggal Terbit</label>
+      <input type="date" name="tanggal" value="{{ .Today }}" required
+             class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Target Kelas</label>
+      <select name="kelas" hx-get="/tagihan/terbitkan-siswa" hx-target="#tagihan-terbit-siswa" hx-include="this" hx-trigger="change"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200">
+        <option value="0">Seluruh sekolah</option>
+        {{ $sk := .SelectedKelas }}
+        {{ range .KelasList }}<option value="{{ .ID }}" {{ if eq .ID $sk }}selected{{ end }}>{{ .Nama }}</option>{{ end }}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Nominal default (isi cepat)</label>
+      <div class="flex gap-2">
+        <div class="relative flex-1">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">Rp</span>
+          <input type="text" inputmode="numeric" id="tg-nominal-default" name="nominal_default" oninput="applyTagihanNominal(this)" placeholder="0"
+                 class="rupiah-input w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-right font-semibold focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+        </div>
+        <button type="button" onclick="applyTagihanNominal(document.getElementById('tg-nominal-default'))"
+                class="rounded-lg border border-slate-300 px-3 text-sm text-slate-600 hover:bg-slate-50">Terapkan</button>
+      </div>
+      <p class="mt-1 text-xs text-slate-400">Mengisi nominal semua siswa; bisa diubah per siswa.</p>
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <div class="flex items-center justify-between mb-1">
+      <label class="block text-sm font-medium text-slate-700">Siswa & Nominal</label>
+      <label class="text-xs text-slate-500 flex items-center gap-1.5">
+        <input type="checkbox" checked onchange="document.querySelectorAll('.siswa-cb').forEach(c=>c.checked=this.checked)"
+               class="h-3.5 w-3.5 rounded border-slate-300 text-primary-600" /> pilih semua
+      </label>
+    </div>
+    <div id="tagihan-terbit-siswa">
+      {{ template "tagihan/terbitkan_siswa_options" . }}
+    </div>
+    <p class="mt-1 text-xs text-slate-400">Siswa dengan nominal kosong/0 akan dilewati.</p>
+  </div>
+
+  <div class="mb-2">
+    <label class="block text-sm font-medium text-slate-700 mb-1">Keterangan <span class="text-slate-400 font-normal">(opsional)</span></label>
+    <input name="keterangan" placeholder="mis. Seragam tahun ajaran 2024/2025"
+           class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+  </div>
+  {{ end }}
+
+  {{ template "components/form_footer" dict "SubmitLabel" "Terbitkan" }}
+</form>
+{{ template "components/modal_end" . }}
+{{ end }}
+
+
+{{ define "tagihan/terbitkan_siswa_options" }}
+{{ if not .SiswaList }}
+<p class="text-sm text-slate-400 py-2">Tidak ada siswa aktif pada target ini.</p>
+{{ else }}
+<div class="max-h-56 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+  {{ range .SiswaList }}
+  <div class="flex items-center gap-2 px-2 py-1.5">
+    <input type="checkbox" name="siswa" value="{{ .ID }}" checked class="siswa-cb h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" />
+    <span class="flex-1 text-sm text-slate-700 truncate">{{ .Nama }} <span class="text-slate-400 font-mono text-xs">{{ .NIS }}</span></span>
+    <div class="relative w-32">
+      <span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+      <input type="text" inputmode="numeric" name="nominal_{{ .ID }}" placeholder="0"
+             class="rupiah-input tagihan-nominal w-full rounded-lg border border-slate-300 pl-7 pr-2 py-1.5 text-sm text-right focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+    </div>
+  </div>
+  {{ end }}
+</div>
+{{ end }}
+{{ end }}

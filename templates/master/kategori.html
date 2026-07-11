@@ -1,0 +1,77 @@
+{{ define "master/kategori" }}
+{{ template "partials/page_start" . }}
+{{ template "master/tabs" . }}
+
+<div class="flex items-center justify-between mb-4">
+  <h3 class="font-semibold text-slate-800">Kategori Pengeluaran</h3>
+  <button hx-get="/master/kategori/new" hx-target="#modal-root" hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700">
+    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+    Tambah Kategori
+  </button>
+</div>
+
+<div id="kat-list" class="space-y-3">
+  {{ template "master/kategori_list" dict "List" .List }}
+</div>
+
+{{ template "partials/page_end" . }}
+{{ end }}
+
+
+{{ define "master/kategori_list" }}
+{{ if not .List }}
+<div class="rounded-xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center text-slate-400">
+  Belum ada kategori. Klik “Tambah Kategori”.
+</div>
+{{ end }}
+{{ range .List }}
+<div class="rounded-xl border border-slate-200 bg-white">
+  <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+    <div class="flex items-center gap-2">
+      <span class="font-semibold text-slate-800">{{ .Nama }}</span>
+      {{ if not .Aktif }}<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">non-aktif</span>{{ end }}
+    </div>
+    <div class="flex items-center gap-1">
+      <button hx-get="/master/kategori/{{ .ID }}/sub/new" hx-target="#modal-root" hx-swap="innerHTML"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-50">+ Sub</button>
+      <button hx-get="/master/kategori/{{ .ID }}/edit" hx-target="#modal-root" hx-swap="innerHTML"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">Edit</button>
+      <button hx-delete="/master/kategori/{{ .ID }}" hx-swap="none"
+              hx-confirm="Hapus kategori “{{ .Nama }}” beserta seluruh sub-nya?"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50">Hapus</button>
+    </div>
+  </div>
+  <div class="px-5 py-3">
+    {{ if .SubList }}
+    <div class="flex flex-wrap gap-2">
+      {{ $kid := .ID }}
+      {{ range .SubList }}
+      <span class="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 pl-3 pr-1.5 py-1 text-sm text-slate-700">
+        {{ .Nama }}
+        <button hx-get="/master/kategori/{{ $kid }}/sub/{{ .ID }}/edit" hx-target="#modal-root" hx-swap="innerHTML"
+                class="rounded p-0.5 text-slate-400 hover:text-primary-600" title="Edit">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        </button>
+        <button hx-delete="/master/kategori/{{ $kid }}/sub/{{ .ID }}" hx-swap="none"
+                hx-confirm="Hapus sub “{{ .Nama }}”?"
+                class="rounded p-0.5 text-slate-400 hover:text-red-600" title="Hapus">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </span>
+      {{ end }}
+    </div>
+    {{ else }}
+    <p class="text-sm text-slate-400">Belum ada sub kategori.</p>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+{{ end }}
+
+
+{{ define "master/kategori_list_oob" }}
+<div id="kat-list" hx-swap-oob="true" class="space-y-3">
+  {{ template "master/kategori_list" dict "List" .List }}
+</div>
+{{ end }}

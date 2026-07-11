@@ -1,0 +1,66 @@
+{{ define "kas/tabs" }}
+<div class="mb-5">
+  <h2 class="text-lg font-semibold text-slate-800 mb-3">Kas Sekolah</h2>
+  <div class="flex flex-wrap gap-1 border-b border-slate-200">
+    {{ $a := .ActiveTab }}
+    <a href="/kas/pemasukan" class="-mb-px border-b-2 px-3 py-2 text-sm font-medium transition {{ if eq $a "pemasukan" }}border-primary-600 text-primary-700{{ else }}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300{{ end }}">Pemasukan</a>
+    <a href="/kas/pengeluaran" class="-mb-px border-b-2 px-3 py-2 text-sm font-medium transition {{ if eq $a "pengeluaran" }}border-primary-600 text-primary-700{{ else }}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300{{ end }}">Pengeluaran</a>
+  </div>
+</div>
+{{ end }}
+
+
+{{ define "kas/saldo_cards" }}
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+  <div class="rounded-xl border border-slate-200 bg-white p-5">
+    <p class="text-sm text-slate-500">Total Pemasukan</p>
+    <p class="mt-1 text-xl font-bold text-green-600">{{ rupiah .Summary.TotalPemasukan }}</p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-5">
+    <p class="text-sm text-slate-500">Total Pengeluaran</p>
+    <p class="mt-1 text-xl font-bold text-red-600">{{ rupiah .Summary.TotalPengeluaran }}</p>
+  </div>
+  <div class="rounded-xl border border-primary-200 bg-primary-50 p-5">
+    <p class="text-sm text-primary-700">Saldo Kas</p>
+    <p class="mt-1 text-xl font-bold text-primary-800">{{ rupiah .Summary.Saldo }}</p>
+  </div>
+</div>
+{{ end }}
+
+
+{{ define "kas/filter_bar" }}
+{{/* Param: .Endpoint (url), .SelectedTA, .Bulan, .TahunList, .AddLabel, .AddHref */}}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <form hx-get="{{ .Endpoint }}" hx-target="#kas-content" hx-swap="innerHTML" hx-trigger="change"
+        class="flex flex-wrap items-end gap-3">
+    <input type="hidden" name="partial" value="1" />
+    <div>
+      <label class="block text-xs font-medium text-slate-500 mb-1">Tahun Ajaran</label>
+      <select name="ta" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200">
+        {{ $sel := .SelectedTA }}
+        {{ range .TahunList }}
+        <option value="{{ .ID }}" {{ if eq .ID $sel }}selected{{ end }}>{{ .Nama }}{{ if .Aktif }} (aktif){{ end }}</option>
+        {{ end }}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-slate-500 mb-1">Bulan</label>
+      <select name="bulan" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200">
+        <option value="0">Semua bulan</option>
+        {{ $b := .Bulan }}
+        {{ range seq 12 }}
+        <option value="{{ . }}" {{ if eq . $b }}selected{{ end }}>{{ namaBulan . }}</option>
+        {{ end }}
+      </select>
+    </div>
+  </form>
+
+  {{ if .CanEdit }}
+  <button hx-get="{{ .AddHref }}" hx-target="#modal-root" hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700">
+    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+    {{ .AddLabel }}
+  </button>
+  {{ end }}
+</div>
+{{ end }}

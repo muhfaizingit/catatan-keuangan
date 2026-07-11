@@ -1,0 +1,39 @@
+{{ define "auth/login" }}
+<!doctype html>
+<html lang="id" class="h-full bg-slate-100">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ .Title }} · Keuangan Sekolah</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { primary: {
+      50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',
+      500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a'
+    } }, fontFamily: { sans: ['Inter','system-ui','sans-serif'] } } } }
+  </script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="preconnect" href="https://rsms.me/" />
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+</head>
+<body class="h-full font-sans text-slate-700 antialiased">
+  <div class="min-h-full flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-sm">
+      <div class="text-center mb-8">
+        <div class="mx-auto h-14 w-14 rounded-2xl bg-primary-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-primary-600/30">K</div>
+        <h1 class="mt-4 text-xl font-bold text-slate-800">Keuangan Sekolah</h1>
+        <p class="text-sm text-slate-500">Silakan masuk untuk melanjutkan</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div id="login-form-wrap">
+          {{ template "auth/login_form" . }}
+        </div>
+      </div>
+
+      <p class="mt-6 text-center text-xs text-slate-400">© 2026 Keuangan Sekolah</p>
+    </div>
+  </div>
+</body>
+</html>
+{{ end }}

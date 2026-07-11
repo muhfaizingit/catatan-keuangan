@@ -1,0 +1,113 @@
+{{ define "tagihan/index" }}
+{{ template "partials/page_start" . }}
+{{ template "tagihan/tabs" . }}
+<div id="tagihan-content">
+  {{ template "tagihan/list_content" . }}
+</div>
+{{ template "partials/page_end" . }}
+{{ end }}
+
+
+{{ define "tagihan/list_content" }}
+{{ if not .HasTA }}
+{{ template "tagihan/no_ta" . }}
+{{ else }}
+
+<!-- Ringkasan status -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+  <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Lunas</p><p class="mt-1 text-lg font-bold text-green-600">{{ .NLunas }}</p></div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Cicil</p><p class="mt-1 text-lg font-bold text-amber-600">{{ .NCicil }}</p></div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Belum</p><p class="mt-1 text-lg font-bold text-red-600">{{ .NBelum }}</p></div>
+  <div class="rounded-xl border border-primary-200 bg-primary-50 p-4"><p class="text-xs text-primary-700">Sisa Tagihan</p><p class="mt-1 text-lg font-bold text-primary-800">{{ rupiah .TotalSisa }}</p></div>
+</div>
+
+<!-- Filter + terbitkan -->
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <form hx-get="/tagihan" hx-target="#tagihan-content" hx-swap="innerHTML" hx-trigger="change" class="flex flex-wrap items-end gap-3">
+    <input type="hidden" name="partial" value="1" />
+    <div>
+      <label class="block text-xs font-medium text-slate-500 mb-1">Jenis</label>
+      <select name="jenis" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200">
+        <option value="0">Semua jenis</option>
+        {{ $sj := .SelectedJenis }}
+        {{ range .JenisList }}<option value="{{ .ID }}" {{ if eq .ID $sj }}selected{{ end }}>{{ .Nama }}</option>{{ end }}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-slate-500 mb-1">Kelas</label>
+      <select name="kelas" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200">
+        {{ $sk := .SelectedKelas }}
+        {{ range .KelasList }}<option value="{{ .ID }}" {{ if eq .ID $sk }}selected{{ end }}>{{ .Nama }}</option>{{ end }}
+      </select>
+    </div>
+  </form>
+
+  {{ if .CanEdit }}
+  <button hx-get="/tagihan/terbitkan" hx-target="#modal-root" hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700">
+    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+    Terbitkan Tagihan
+  </button>
+  {{ end }}
+</div>
+
+<div class="rounded-xl border border-slate-200 bg-white overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100">
+        <th class="px-5 py-3 font-medium">Siswa</th>
+        <th class="px-5 py-3 font-medium">Jenis</th>
+        <th class="px-5 py-3 font-medium text-right">Nominal</th>
+        <th class="px-5 py-3 font-medium text-right">Dibayar</th>
+        <th class="px-5 py-3 font-medium text-right">Sisa</th>
+        <th class="px-5 py-3 font-medium">Status</th>
+        <th class="px-5 py-3 font-medium text-right">Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="tagihan-rows" class="divide-y divide-slate-100">
+      {{ template "tagihan/rows" . }}
+    </tbody>
+  </table>
+</div>
+{{ end }}
+{{ end }}
+
+
+{{ define "tagihan/rows" }}
+{{ if not .Rows }}
+<tr><td colspan="7" class="px-5 py-10 text-center text-slate-400">Belum ada tagihan pada filter ini. Klik “Terbitkan Tagihan”.</td></tr>
+{{ end }}
+{{ $j := .SelectedJenis }}{{ $k := .SelectedKelas }}{{ $canEdit := .CanEdit }}
+{{ range .Rows }}
+<tr class="hover:bg-slate-50">
+  <td class="px-5 py-3 font-medium text-slate-800">{{ .Tagihan.Siswa.Nama }} <span class="text-slate-400 font-mono text-xs">{{ .Tagihan.Siswa.NIS }}</span></td>
+  <td class="px-5 py-3 text-slate-600">{{ .Tagihan.JenisTagihan.Nama }}</td>
+  <td class="px-5 py-3 text-right text-slate-600 whitespace-nowrap">{{ rupiah .Tagihan.Nominal }}</td>
+  <td class="px-5 py-3 text-right text-slate-600 whitespace-nowrap">{{ rupiah .Paid }}</td>
+  <td class="px-5 py-3 text-right font-semibold whitespace-nowrap {{ if gt .Sisa 0 }}text-red-600{{ else }}text-green-600{{ end }}">{{ rupiah .Sisa }}</td>
+  <td class="px-5 py-3">{{ template "tagihan/status_badge" .Tagihan.Status }}</td>
+  <td class="px-5 py-3 text-right">
+    <div class="flex items-center justify-end gap-1">
+      <button hx-get="{{ printf "/tagihan/%d/riwayat?jenis=%d&kelas=%d" .Tagihan.ID $j $k }}" hx-target="#modal-root" hx-swap="innerHTML"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">Riwayat</button>
+      {{ if $canEdit }}
+      {{ if gt .Sisa 0 }}
+      <button hx-get="{{ printf "/tagihan/%d/bayar?jenis=%d&kelas=%d" .Tagihan.ID $j $k }}" hx-target="#modal-root" hx-swap="innerHTML"
+              class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">Bayar</button>
+      {{ end }}
+      <button hx-delete="{{ printf "/tagihan/%d?jenis=%d&kelas=%d" .Tagihan.ID $j $k }}" hx-swap="none"
+              hx-confirm="Hapus tagihan {{ .Tagihan.JenisTagihan.Nama }} ({{ rupiah .Tagihan.Nominal }}) milik {{ .Tagihan.Siswa.Nama }}? Pembayaran & kas terkait ikut ditarik."
+              class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50">Hapus</button>
+      {{ end }}
+    </div>
+  </td>
+</tr>
+{{ end }}
+{{ end }}
+
+
+{{ define "tagihan/list_content_oob" }}
+<div id="tagihan-content" hx-swap-oob="true">
+  {{ template "tagihan/list_content" . }}
+</div>
+{{ end }}

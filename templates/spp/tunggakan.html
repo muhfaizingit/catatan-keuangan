@@ -1,0 +1,69 @@
+{{ define "spp/tunggakan" }}
+{{ template "partials/page_start" . }}
+{{ template "spp/tabs" . }}
+<div id="spp-content">
+  {{ template "spp/tunggakan_content" . }}
+</div>
+{{ template "partials/page_end" . }}
+{{ end }}
+
+
+{{ define "spp/tunggakan_content" }}
+{{ if not .HasTA }}
+{{ template "spp/no_ta" . }}
+{{ else }}
+
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <form hx-get="/spp/tunggakan" hx-target="#spp-content" hx-swap="innerHTML" hx-trigger="change"
+        class="flex items-end gap-3">
+    <input type="hidden" name="partial" value="1" />
+    <div>
+      <label class="block text-xs font-medium text-slate-500 mb-1">Kelas</label>
+      <select name="kelas" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200">
+        {{ $sk := .SelectedKelas }}
+        {{ range .KelasList }}<option value="{{ .ID }}" {{ if eq .ID $sk }}selected{{ end }}>{{ .Nama }}</option>{{ end }}
+      </select>
+    </div>
+  </form>
+  <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5">
+    <span class="text-xs text-red-700">Total Tunggakan Kelas</span>
+    <span class="ml-2 font-bold text-red-700">{{ rupiah .GrandTunggakan }}</span>
+  </div>
+</div>
+
+<div class="rounded-xl border border-slate-200 bg-white overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100">
+        <th class="px-5 py-3 font-medium">Nama Siswa</th>
+        <th class="px-5 py-3 font-medium text-right">Total Tagihan</th>
+        <th class="px-5 py-3 font-medium text-right">Dibayar</th>
+        <th class="px-5 py-3 font-medium text-right">Tunggakan</th>
+        <th class="px-5 py-3 font-medium text-center">Blm Lunas</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {{ if not .Rows }}
+      <tr><td colspan="5" class="px-5 py-10 text-center text-slate-400">Belum ada data tagihan untuk kelas ini.</td></tr>
+      {{ end }}
+      {{ range .Rows }}
+      <tr class="hover:bg-slate-50">
+        <td class="px-5 py-3 font-medium text-slate-800">{{ .Siswa.Nama }} <span class="text-slate-400 font-mono text-xs">{{ .Siswa.NIS }}</span></td>
+        <td class="px-5 py-3 text-right text-slate-600 whitespace-nowrap">{{ rupiah .TotalTagih }}</td>
+        <td class="px-5 py-3 text-right text-slate-600 whitespace-nowrap">{{ rupiah .TotalBayar }}</td>
+        <td class="px-5 py-3 text-right font-semibold whitespace-nowrap {{ if gt .Tunggakan 0 }}text-red-600{{ else }}text-green-600{{ end }}">{{ rupiah .Tunggakan }}</td>
+        <td class="px-5 py-3 text-center text-slate-500">{{ .NBelum }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ end }}
+{{ end }}
+
+
+{{ define "spp/tunggakan_content_oob" }}
+<div id="spp-content" hx-swap-oob="true">
+  {{ template "spp/tunggakan_content" . }}
+</div>
+{{ end }}

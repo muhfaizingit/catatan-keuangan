@@ -1,0 +1,48 @@
+{{ define "kas/pemasukan_form" }}
+{{ template "components/modal_start" . }}
+<form hx-post="/kas/pemasukan" hx-target="#modal-root" hx-swap="innerHTML">
+  {{ template "components/form_error" .Error }}
+  <input type="hidden" name="ta" value="{{ .SelectedTA }}" />
+  <input type="hidden" name="bulan" value="{{ .Bulan }}" />
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Tanggal</label>
+      <input type="date" name="tanggal" value="{{ if .Tanggal }}{{ .Tanggal }}{{ else }}{{ .Today }}{{ end }}" required
+             class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1">Jenis Pemasukan</label>
+      <select name="jenis_pemasukan_id" required
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none">
+        <option value="">— Pilih jenis —</option>
+        {{ $sel := .Jenis }}
+        {{ range .JenisList }}
+        <option value="{{ .ID }}" {{ if eq (printf "%d" .ID) $sel }}selected{{ end }}>{{ .Nama }}</option>
+        {{ end }}
+      </select>
+      {{ if not .JenisList }}
+      <p class="mt-1 text-xs text-amber-600">Belum ada jenis pemasukan aktif. Tambah di Master Data.</p>
+      {{ end }}
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <label class="block text-sm font-medium text-slate-700 mb-1">Jumlah</label>
+    <div class="relative">
+      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">Rp</span>
+      <input type="text" inputmode="numeric" name="jumlah" value="{{ .Jumlah }}" required placeholder="0"
+             class="rupiah-input w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-right font-semibold focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+    </div>
+  </div>
+
+  <div class="mb-2">
+    <label class="block text-sm font-medium text-slate-700 mb-1">Keterangan <span class="text-slate-400 font-normal">(opsional)</span></label>
+    <textarea name="keterangan" rows="2" placeholder="Catatan transaksi"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none">{{ .Keterangan }}</textarea>
+  </div>
+
+  {{ template "components/form_footer" dict "SubmitLabel" "Simpan Pemasukan" }}
+</form>
+{{ template "components/modal_end" . }}
+{{ end }}

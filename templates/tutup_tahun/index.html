@@ -1,0 +1,91 @@
+{{ define "tutup_tahun/index" }}
+{{ template "partials/page_start" . }}
+<h2 class="text-lg font-semibold text-slate-800 mb-4">Tutup Tahun Ajaran</h2>
+<div id="tutup-content">
+  {{ template "tutup_tahun/content" . }}
+</div>
+{{ template "partials/page_end" . }}
+{{ end }}
+
+
+{{ define "tutup_tahun/content" }}
+{{ if not .HasTA }}
+<div class="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700">
+  Belum ada tahun ajaran aktif. Atur dulu di <a href="/master/tahun-ajaran" class="underline font-medium">Master Data</a>.
+</div>
+{{ else }}
+
+{{ if .FromTutup }}
+<div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 px-5 py-3.5">
+  <div class="text-sm text-green-800">
+    Tahun ajaran <span class="font-semibold">{{ .TA.Nama }}</span> ini hasil tutup tahun dari
+    <span class="font-semibold">{{ .Incoming.TahunAjaranLama.Nama }}</span> pada {{ tanggal .Incoming.Tanggal }}
+    (saldo dibawa {{ rupiah .Incoming.SaldoDibawa }}, piutang {{ rupiah .Incoming.TotalPiutang }}).
+  </div>
+  {{ if .CanEdit }}
+  <button hx-delete="/tutup-tahun" hx-swap="none"
+          hx-confirm="Batalkan tutup tahun? Tahun ajaran lama aktif kembali & tahun baru dihapus. Hanya bisa bila tahun baru belum ada transaksi."
+          class="rounded-lg border border-green-300 px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100">Batal Tutup Tahun</button>
+  {{ end }}
+</div>
+{{ end }}
+
+<p class="text-sm text-slate-500 mb-3">Ringkasan tahun ajaran aktif: <span class="font-medium text-slate-700">{{ .TA.Nama }}</span></p>
+<div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-5">
+  <div class="rounded-xl border border-primary-200 bg-primary-50 p-5">
+    <p class="text-sm text-primary-700">Saldo Kas</p><p class="mt-1 text-xl font-bold text-primary-800">{{ rupiah .Saldo }}</p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-5">
+    <p class="text-sm text-slate-500">Total Pemasukan</p><p class="mt-1 text-xl font-bold text-green-600">{{ rupiah .TotalPemasukan }}</p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-5">
+    <p class="text-sm text-slate-500">Total Pengeluaran</p><p class="mt-1 text-xl font-bold text-red-600">{{ rupiah .TotalPengeluaran }}</p>
+  </div>
+  <div class="rounded-xl border border-amber-200 bg-amber-50 p-5">
+    <p class="text-sm text-amber-700">Calon Piutang</p><p class="mt-1 text-xl font-bold text-amber-700">{{ rupiah .TotalPiutang }}</p>
+    <p class="text-[11px] text-amber-600">{{ .JumlahPiutang }} siswa punya tunggakan</p>
+  </div>
+</div>
+
+{{ if not .TabunganDitutup }}
+<div class="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
+  Catatan: <a href="/tabungan" class="underline font-medium">tabungan</a> belum ditutup. Sebaiknya tutup tabungan dulu agar saldo siswa terselesaikan.
+</div>
+{{ end }}
+
+{{ if .CanEdit }}
+<div class="rounded-xl border border-slate-200 bg-white p-5 max-w-xl">
+  <h3 class="font-semibold text-slate-800 mb-1">Proses Tutup Tahun</h3>
+  <p class="text-sm text-slate-500 mb-4">Mengunci <span class="font-medium">{{ .TA.Nama }}</span>, membuka tahun ajaran baru & mengaktifkannya, membawa saldo kas {{ rupiah .Saldo }}, dan membuat piutang {{ rupiah .TotalPiutang }}.</p>
+  <form hx-post="/tutup-tahun" hx-target="#tutup-content" hx-swap="none"
+        hx-confirm="Proses tutup tahun {{ .TA.Nama }}? Tahun ajaran ini akan dikunci.">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Nama Tahun Ajaran Baru</label>
+        <input name="nama_baru" required placeholder="contoh: 2025/2026"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Tanggal Tutup</label>
+        <input type="date" name="tanggal" value="{{ .Today }}" required
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+      </div>
+    </div>
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-slate-700 mb-1">Keterangan <span class="text-slate-400 font-normal">(opsional)</span></label>
+      <input name="keterangan" placeholder="Catatan penutupan"
+             class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+    </div>
+    <button type="submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Proses Tutup Tahun</button>
+  </form>
+</div>
+{{ end }}
+{{ end }}
+{{ end }}
+
+
+{{ define "tutup_tahun/content_oob" }}
+<div id="tutup-content" hx-swap-oob="true">
+  {{ template "tutup_tahun/content" . }}
+</div>
+{{ end }}
