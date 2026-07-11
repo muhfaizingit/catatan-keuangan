@@ -1,0 +1,16 @@
+[Unit]
+Description=Keuangan Sekolah
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/keuangan
+ExecStart=/opt/keuangan/keuangan
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/opt/keuangan/.env
+
+[Install]
+WantedBy=multi-user.target
