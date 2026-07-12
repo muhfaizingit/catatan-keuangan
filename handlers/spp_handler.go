@@ -316,6 +316,163 @@ func (h *SppHandler) Generate(c *gin.Context) {
 }
 
 // =====================================================================
+// EDIT NOMINAL TAGIHAN (penyesuaian per siswa)
+// =====================================================================
+
+// taClosedByID memeriksa apakah tahun ajaran tertentu sudah ditutup (dikunci).
+func (h *SppHandler) taClosedByID(taID uint64) bool {
+	var ta models.TahunAjaran
+	if err := h.DB.First(&ta, taID).Error; err != nil {
+		return false
+	}
+	return ta.Ditutup
+}
+
+func (h *SppHandler) EditForm(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var t models.SppTagihan
+	if err := h.DB.Preload("Siswa").First(&t, id).Error; err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	ta, _ := h.activeTA()
+	taClosed := h.taClosedByID(t.TahunAjaranID)
+
+	// Kumpulkan semua tagihan siswa di TA ini + total terbayar per tagihan.
+	var tagihan []models.SppTagihan
+	h.DB.Where("tahun_ajaran_id = ? AND siswa_id = ?", t.TahunAjaranID, t.SiswaID).Find(&tagihan)
+	ids := make([]uint64, 0, len(tagihan))
+	for _, x := range tagihan {
+		ids = append(ids, x.ID)
+	}
+	paid := h.paidMap(ids)
+	byBulan := map[int]models.SppTagihan{}
+	for _, x := range tagihan {
+		byBulan[x.Bulan] = x
+	}
+
+	// Susun 12 bulan dengan info centang default + status.
+	type BulanRow struct {
+		Bulan     int
+		Nama      string
+		Ada       bool   // sudah ada tagihan
+		Checked   bool   // default centang (ada tagihan & belum dibayar & TA aktif)
+		Disabled  bool   // sudah dibayar atau TA ditutup
+		Status    string
+		Paid      int64
+	}
+	rows := make([]BulanRow, 0, 12)
+	for b := 1; b <= 12; b++ {
+		x, ok := byBulan[b]
+		if !ok {
+			rows = append(rows, BulanRow{Bulan: b, Nama: util.NamaBulan(b), Ada: false, Checked: false, Disabled: taClosed})
+			continue
+		}
+		pd := paid[x.ID]
+		disabled := taClosed || pd > 0
+		rows = append(rows, BulanRow{
+			Bulan: b, Nama: util.NamaBulan(b), Ada: true,
+			Checked: !disabled, Disabled: disabled, Status: string(x.Status), Paid: pd,
+		})
+	}
+
+	c.HTML(http.StatusOK, "spp/edit_form", gin.H{
+		"Title":     "Edit Nominal SPP",
+		"Tagihan":   t,
+		"TAClosed":  taClosed,
+		"TANama":    ta.Nama,
+		"Kelas":     c.Query("kelas"),
+		"Rows":      rows,
+	})
+}
+
+func (h *SppHandler) editErr(c *gin.Context, t models.SppTagihan, msg string) {
+	ta, _ := h.activeTA()
+	c.HTML(http.StatusOK, "spp/edit_form", gin.H{
+		"Title": "Edit Nominal SPP", "Error": msg, "Tagihan": t,
+		"TAClosed": h.taClosedByID(t.TahunAjaranID), "TANama": ta.Nama,
+		"Kelas": c.PostForm("kelas"),
+		"Jumlah": c.PostForm("jumlah"), "Keterangan": c.PostForm("keterangan"),
+	})
+}
+
+func (h *SppHandler) Edit(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var t models.SppTagihan
+	if err := h.DB.Preload("Siswa").First(&t, id).Error; err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	kelasID, _ := strconv.ParseUint(c.PostForm("kelas"), 10, 64)
+
+	if h.taClosedByID(t.TahunAjaranID) {
+		h.editErr(c, t, "Tahun ajaran ini sudah ditutup. Tagihan dikunci.")
+		return
+	}
+
+	jumlah := util.ParseRupiah(c.PostForm("jumlah"))
+	if jumlah <= 0 {
+		h.editErr(c, t, "Nominal harus lebih dari 0.")
+		return
+	}
+
+	bulanStr := c.PostFormArray("bulan")
+	if len(bulanStr) == 0 {
+		h.editErr(c, t, "Pilih minimal satu bulan.")
+		return
+	}
+	var bulanList []int
+	for _, b := range bulanStr {
+		if n, err := strconv.Atoi(b); err == nil && n >= 1 && n <= 12 {
+			bulanList = append(bulanList, n)
+		}
+	}
+
+	keterangan := c.PostForm("keterangan")
+	updated, skipped := 0, 0
+	h.DB.Transaction(func(tx *gorm.DB) error {
+		for _, b := range bulanList {
+			var tg models.SppTagihan
+			res := tx.Where("tahun_ajaran_id = ? AND siswa_id = ? AND bulan = ?", t.TahunAjaranID, t.SiswaID, b).
+				First(&tg)
+			if res.Error != nil {
+				// Belum ada tagihan -> buat baru dengan nominal ini.
+				tg = models.SppTagihan{
+					SiswaID: t.SiswaID, TahunAjaranID: t.TahunAjaranID, Bulan: b,
+					Jumlah: jumlah, Status: models.SPPBelum, Keterangan: keterangan,
+				}
+				if err := tx.Create(&tg).Error; err != nil {
+					return err
+				}
+				updated++
+				continue
+			}
+			// Sudah ada: lewati bila sudah dibayar (jaga integritas).
+			pd := h.paidMap([]uint64{tg.ID})[tg.ID]
+			if pd > 0 {
+				skipped++
+				continue
+			}
+			tg.Jumlah = jumlah
+			tg.Keterangan = keterangan
+			tg.Status = models.SPPBelum
+			if err := tx.Save(&tg).Error; err != nil {
+				return err
+			}
+			updated++
+		}
+		return nil
+	})
+
+	msg := strconv.Itoa(updated) + " bulan diperbarui."
+	if skipped > 0 {
+		msg += " " + strconv.Itoa(skipped) + " dilewati (sudah dibayar)."
+	}
+	c.Header("HX-Trigger", `{"toast":{"type":"success","msg":"`+msg+`"}}`)
+	h.refreshPembayaran(c, kelasID, int(time.Now().Month()))
+}
+
+// =====================================================================
 // BAYAR
 // =====================================================================
 

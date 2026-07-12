@@ -136,6 +136,8 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		app.GET("/spp/bayar/:id", write, sppH.BayarForm)
 		app.POST("/spp/bayar/:id", write, sppH.Bayar)
 		app.GET("/spp/tagihan/:id/riwayat", view, sppH.RiwayatForm)
+		app.GET("/spp/tagihan/:id/edit", write, sppH.EditForm)
+		app.PUT("/spp/tagihan/:id", write, sppH.Edit)
 		app.DELETE("/spp/pembayaran/:id", write, sppH.HapusPembayaran)
 
 		// SPP · Dana Bantuan

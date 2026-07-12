@@ -19,6 +19,7 @@ type SppTagihan struct {
 	TahunAjaranID uint64    `gorm:"not null;uniqueIndex:uq_siswa_ta_bulan;index" json:"tahun_ajaran_id"`
 	Bulan         int       `gorm:"not null;uniqueIndex:uq_siswa_ta_bulan" json:"bulan"` // 1-12
 	Jumlah        int64     `gorm:"not null" json:"jumlah"`
+	Keterangan    string    `gorm:"type:text" json:"keterangan"` // mis. alasan penyesuaian nominal
 	Status        StatusSPP `gorm:"type:varchar(10);default:'belum'" json:"status"`
 	CreatedAt     time.Time `json:"created_at"`
 

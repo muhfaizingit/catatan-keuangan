@@ -96,6 +96,10 @@
     <div class="flex items-center justify-end gap-1">
       <button hx-get="{{ printf "/spp/tagihan/%d/riwayat?kelas=%d&bulan=%d" .Tagihan.ID $kelas $bulan }}" hx-target="#modal-root" hx-swap="innerHTML"
               class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">Riwayat</button>
+      {{ if and $canEdit (ne .Tagihan.Status "lunas") }}
+      <button hx-get="{{ printf "/spp/tagihan/%d/edit?kelas=%d&bulan=%d" .Tagihan.ID $kelas $bulan }}" hx-target="#modal-root" hx-swap="innerHTML"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50">Edit</button>
+      {{ end }}
       {{ if and $canEdit (gt .Sisa 0) }}
       <button hx-get="{{ printf "/spp/bayar/%d?kelas=%d&bulan=%d" .Tagihan.ID $kelas $bulan }}" hx-target="#modal-root" hx-swap="innerHTML"
               class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">Bayar</button>

@@ -1,0 +1,60 @@
+{{ define "spp/edit_form" }}
+{{ template "components/modal_start" . }}
+{{ if .TAClosed }}
+<div class="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+  Tahun ajaran ini sudah ditutup. Tagihan dikunci dan tidak dapat diubah.
+</div>
+<div class="mt-4 flex justify-end">
+  <button type="button" onclick="document.getElementById('modal-root').innerHTML=''"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Tutup</button>
+</div>
+{{ else }}
+<form hx-put="{{ printf "/spp/tagihan/%d" .Tagihan.ID }}" hx-target="#modal-root" hx-swap="innerHTML">
+  {{ template "components/form_error" .Error }}
+  <input type="hidden" name="kelas" value="{{ .Kelas }}" />
+
+  <div class="mb-4 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+    <p class="font-medium text-slate-800">{{ .Tagihan.Siswa.Nama }}</p>
+    <p class="text-xs text-slate-500">TA {{ .TANama }}</p>
+  </div>
+
+  <div class="mb-4">
+    <label class="block text-sm font-medium text-slate-700 mb-1">Nominal (berlaku untuk bulan terpilih)</label>
+    <div class="relative">
+      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">Rp</span>
+      <input type="text" inputmode="numeric" name="jumlah" value="{{ if .Jumlah }}{{ .Jumlah }}{{ else }}{{ ribuan .Tagihan.Jumlah }}{{ end }}" required
+             class="rupiah-input w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm text-right font-semibold focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <label class="block text-sm font-medium text-slate-700 mb-2">Bulan yang diubah</label>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      {{ range .Rows }}
+      <label class="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm
+            {{ if .Disabled }}border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed{{ else }}border-slate-300 hover:bg-slate-50 cursor-pointer{{ end }}">
+        {{ if .Disabled }}
+        <input type="checkbox" disabled {{ if .Checked }}checked{{ end }} class="h-4 w-4 rounded border-slate-300" />
+        {{ else }}
+        <input type="checkbox" name="bulan" value="{{ .Bulan }}" {{ if .Checked }}checked{{ end }}
+               class="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" />
+        {{ end }}
+        <span class="flex-1">{{ .Nama }}</span>
+        {{ if .Ada }}<span class="text-[10px] {{ if .Disabled }}text-slate-400{{ else }}text-green-600{{ end }}">{{ if .Disabled }}lunas/terbayar{{ else }}ada{{ end }}</span>{{ end }}
+      </label>
+      {{ end }}
+    </div>
+    <p class="mt-1 text-xs text-slate-400">Bulan yang sudah dibayar otomatis dilewati. Bulan yang belum ada tagihan akan dibuat baru.</p>
+  </div>
+
+  <div class="mb-2">
+    <label class="block text-sm font-medium text-slate-700 mb-1">Keterangan <span class="text-slate-400 font-normal">(opsional)</span></label>
+    <input name="keterangan" value="{{ if .Keterangan }}{{ .Keterangan }}{{ else }}{{ .Tagihan.Keterangan }}{{ end }}" placeholder="mis. SPP disesuaikan / diskon"
+           class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none" />
+  </div>
+
+  {{ template "components/form_footer" dict "SubmitLabel" "Simpan Perubahan" }}
+</form>
+{{ end }}
+{{ template "components/modal_end" . }}
+{{ end }}
