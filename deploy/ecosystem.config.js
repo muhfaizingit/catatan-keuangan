@@ -12,6 +12,7 @@ module.exports = {
       name: "keuangan",
       cwd: "/var/www/tkaba/keuangan",
       script: "/var/www/tkaba/keuangan/keuangan",
+      interpreter: "none", // WAJIB: ini binary Go, bukan skrip Node
       autorestart: true,
       watch: false,
       max_restarts: 10,
