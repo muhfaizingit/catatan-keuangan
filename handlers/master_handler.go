@@ -284,26 +284,100 @@ func (h *MasterHandler) KelasDelete(c *gin.Context) {
 // SISWA
 // =====================================================================
 
-func (h *MasterHandler) siswaList() []models.Siswa {
+const siswaPageSize = 15
+
+// reqPage membaca nomor halaman dari form (submit modal) atau query string
+// (navigasi & hapus). Default 1.
+func reqPage(c *gin.Context) int {
+	v := c.PostForm("page")
+	if v == "" {
+		v = c.Query("page")
+	}
+	if n, err := strconv.Atoi(v); err == nil && n > 0 {
+		return n
+	}
+	return 1
+}
+
+// siswaTableData menyiapkan data tabel siswa untuk satu halaman beserta
+// info pagination (window nomor halaman, prev/next, rentang baris).
+func (h *MasterHandler) siswaTableData(page int) gin.H {
+	var total int64
+	h.DB.Model(&models.Siswa{}).Count(&total)
+
+	totalPages := int((total + siswaPageSize - 1) / siswaPageSize)
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
 	var list []models.Siswa
-	h.DB.Preload("Kelas.TahunAjaran").Order("nama asc").Find(&list)
-	return list
+	h.DB.Preload("Kelas.TahunAjaran").Order("nama asc").
+		Limit(siswaPageSize).Offset((page - 1) * siswaPageSize).Find(&list)
+
+	from, to := 0, 0
+	if total > 0 {
+		from = (page-1)*siswaPageSize + 1
+		to = from + len(list) - 1
+	}
+
+	// window nomor halaman: maksimal 5 di sekitar halaman aktif
+	start, end := page-2, page+2
+	if start < 1 {
+		start = 1
+	}
+	if end > totalPages {
+		end = totalPages
+	}
+	pages := make([]int, 0, end-start+1)
+	for i := start; i <= end; i++ {
+		pages = append(pages, i)
+	}
+
+	prev, next := page-1, page+1
+	if prev < 1 {
+		prev = 1
+	}
+	if next > totalPages {
+		next = totalPages
+	}
+
+	return gin.H{
+		"List":       list,
+		"Total":      total,
+		"TotalPages": totalPages,
+		"Page":       page,
+		"From":       from,
+		"To":         to,
+		"Pages":      pages,
+		"PrevPage":   prev,
+		"NextPage":   next,
+	}
 }
 
 func (h *MasterHandler) SiswaIndex(c *gin.Context) {
-	c.HTML(http.StatusOK, "master/siswa", gin.H{
-		"Title":      "Master · Siswa",
-		"ActiveMenu": "master",
-		"ActiveTab":  "siswa",
-		"User":       currentUser(c),
-		"List":       h.siswaList(),
-	})
+	data := h.siswaTableData(reqPage(c))
+	// Permintaan HTMX (dari tombol pagination) cukup fragment tabelnya.
+	if c.GetHeader("HX-Request") != "" {
+		c.HTML(http.StatusOK, "master/siswa_table", data)
+		return
+	}
+	data["Title"] = "Master · Siswa"
+	data["ActiveMenu"] = "master"
+	data["ActiveTab"] = "siswa"
+	data["User"] = currentUser(c)
+	c.HTML(http.StatusOK, "master/siswa", data)
 }
 
 func (h *MasterHandler) SiswaForm(c *gin.Context) {
 	data := gin.H{
 		"Title": "Tambah Siswa", "Action": "/master/siswa", "Edit": false,
-		"Item": models.Siswa{Aktif: true}, "KelasList": h.kelasList(),
+		"Item": models.Siswa{Aktif: true}, "KelasList": h.kelasList(), "Page": reqPage(c),
 	}
 	if id, ok := parseID(c); ok {
 		var s models.Siswa
@@ -318,13 +392,13 @@ func (h *MasterHandler) SiswaForm(c *gin.Context) {
 }
 
 func (h *MasterHandler) siswaRefresh(c *gin.Context) {
-	c.HTML(http.StatusOK, "master/siswa_rows_oob", gin.H{"List": h.siswaList()})
+	c.HTML(http.StatusOK, "master/siswa_content_oob", h.siswaTableData(reqPage(c)))
 }
 
 func (h *MasterHandler) siswaFormErr(c *gin.Context, s models.Siswa, edit bool, action, msg string) {
 	c.HTML(http.StatusOK, "master/siswa_form", gin.H{
 		"Title":  map[bool]string{true: "Edit Siswa", false: "Tambah Siswa"}[edit],
-		"Action": action, "Edit": edit, "Item": s, "Error": msg, "KelasList": h.kelasList(),
+		"Action": action, "Edit": edit, "Item": s, "Error": msg, "KelasList": h.kelasList(), "Page": reqPage(c),
 	})
 }
 
@@ -388,6 +462,111 @@ func (h *MasterHandler) SiswaDelete(c *gin.Context) {
 	}
 	h.DB.Delete(&models.Siswa{}, id)
 	h.siswaRefresh(c)
+}
+
+// ---------- Import Siswa (tempel cepat dari Excel/Spreadsheet) ----------
+
+func (h *MasterHandler) SiswaImportForm(c *gin.Context) {
+	c.HTML(http.StatusOK, "master/siswa_import_form", gin.H{
+		"Title":     "Import Siswa",
+		"KelasList": h.kelasList(),
+	})
+}
+
+type siswaImportResult struct {
+	Ditambah int
+	Dilewati []string // NIS sudah ada / duplikat dalam data
+	Gagal    []string // baris format tidak lengkap
+}
+
+// splitImportLine memisah satu baris data: prioritas tab (hasil paste Excel),
+// lalu titik koma, lalu koma.
+func splitImportLine(line string) []string {
+	switch {
+	case strings.Contains(line, "\t"):
+		return strings.Split(line, "\t")
+	case strings.Contains(line, ";"):
+		return strings.Split(line, ";")
+	default:
+		return strings.Split(line, ",")
+	}
+}
+
+func (h *MasterHandler) SiswaImport(c *gin.Context) {
+	raw := c.PostForm("data")
+
+	var kelasDefault *uint64
+	if v := c.PostForm("kelas_id"); v != "" {
+		if id, err := strconv.ParseUint(v, 10, 64); err == nil {
+			kelasDefault = &id
+		}
+	}
+
+	// Peta nama kelas -> ID untuk kolom kelas opsional pada data.
+	kelasByNama := map[string]uint64{}
+	for _, k := range h.kelasList() {
+		kelasByNama[strings.ToLower(strings.TrimSpace(k.Nama))] = k.ID
+	}
+
+	// NIS yang sudah ada di DB, agar tidak dobel.
+	existing := map[string]bool{}
+	var nisList []string
+	h.DB.Model(&models.Siswa{}).Pluck("nis", &nisList)
+	for _, n := range nisList {
+		existing[n] = true
+	}
+
+	var res siswaImportResult
+	seen := map[string]bool{}
+	var toCreate []models.Siswa
+
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(strings.ReplaceAll(line, "\r", ""))
+		if line == "" {
+			continue
+		}
+		fields := splitImportLine(line)
+		nis := strings.TrimSpace(fields[0])
+		nama := ""
+		if len(fields) > 1 {
+			nama = strings.TrimSpace(fields[1])
+		}
+		if nis == "" || nama == "" {
+			res.Gagal = append(res.Gagal, line)
+			continue
+		}
+		if existing[nis] || seen[nis] {
+			res.Dilewati = append(res.Dilewati, nis+" · "+nama)
+			continue
+		}
+
+		s := models.Siswa{NIS: nis, Nama: nama, Aktif: true, KelasID: kelasDefault}
+		if len(fields) > 2 {
+			if id, ok := kelasByNama[strings.ToLower(strings.TrimSpace(fields[2]))]; ok {
+				kid := id
+				s.KelasID = &kid
+			}
+		}
+		seen[nis] = true
+		toCreate = append(toCreate, s)
+	}
+
+	if len(toCreate) > 0 {
+		if err := h.DB.Create(&toCreate).Error; err != nil {
+			c.HTML(http.StatusOK, "master/siswa_import_form", gin.H{
+				"Title":     "Import Siswa",
+				"KelasList": h.kelasList(),
+				"Error":     "Gagal menyimpan sebagian data. Pastikan NIS unik dan coba lagi.",
+			})
+			return
+		}
+		res.Ditambah = len(toCreate)
+	}
+
+	data := h.siswaTableData(1)
+	data["Title"] = "Hasil Import"
+	data["Result"] = res
+	c.HTML(http.StatusOK, "master/siswa_import_result", data)
 }
 
 // =====================================================================

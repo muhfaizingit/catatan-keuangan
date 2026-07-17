@@ -44,15 +44,17 @@ func canEditKas(c *gin.Context) bool {
 	return r == string(models.RoleAdmin) || r == string(models.RoleBendahara)
 }
 
-func (h *KasHandler) tahunAjaranAll() []models.TahunAjaran {
+// tahunAjaranAll mengembalikan seluruh tahun ajaran (terbaru dulu).
+func tahunAjaranAll(db *gorm.DB) []models.TahunAjaran {
 	var list []models.TahunAjaran
-	h.DB.Order("nama desc").Find(&list)
+	db.Order("nama desc").Find(&list)
 	return list
 }
 
-func (h *KasHandler) activeTahunAjaranID() uint64 {
+// activeTahunAjaranID mengembalikan ID tahun ajaran yang sedang aktif (0 bila none).
+func activeTahunAjaranID(db *gorm.DB) uint64 {
 	var ta models.TahunAjaran
-	if err := h.DB.Where("aktif = ?", true).First(&ta).Error; err == nil {
+	if err := db.Where("aktif = ?", true).First(&ta).Error; err == nil {
 		return ta.ID
 	}
 	return 0
@@ -84,7 +86,7 @@ func (h *KasHandler) resolveFilter(c *gin.Context) (taID uint64, bulan int) {
 		taID, _ = strconv.ParseUint(v, 10, 64)
 	}
 	if taID == 0 {
-		taID = h.activeTahunAjaranID()
+		taID = activeTahunAjaranID(h.DB)
 	}
 	if v := c.Query("bulan"); v != "" {
 		bulan, _ = strconv.Atoi(v)
@@ -109,7 +111,7 @@ func (h *KasHandler) pemasukanContext(c *gin.Context) gin.H {
 	return gin.H{
 		"SelectedTA": taID,
 		"Bulan":      bulan,
-		"TahunList":  h.tahunAjaranAll(),
+		"TahunList":  tahunAjaranAll(h.DB),
 		"Summary":    SummaryForTA(h.DB, taID),
 		"List":       list,
 		"HasTA":      taID != 0,
@@ -163,7 +165,7 @@ func (h *KasHandler) PemasukanCreate(c *gin.Context) {
 	taID, _ := strconv.ParseUint(c.PostForm("ta"), 10, 64)
 	bulan, _ := strconv.Atoi(c.PostForm("bulan"))
 	if taID == 0 {
-		taID = h.activeTahunAjaranID()
+		taID = activeTahunAjaranID(h.DB)
 	}
 	jenisID, _ := strconv.ParseUint(c.PostForm("jenis_pemasukan_id"), 10, 64)
 	jumlah := util.ParseRupiah(c.PostForm("jumlah"))
@@ -242,7 +244,7 @@ func (h *KasHandler) pengeluaranContext(c *gin.Context) gin.H {
 	return gin.H{
 		"SelectedTA": taID,
 		"Bulan":      bulan,
-		"TahunList":  h.tahunAjaranAll(),
+		"TahunList":  tahunAjaranAll(h.DB),
 		"Summary":    SummaryForTA(h.DB, taID),
 		"List":       list,
 		"HasTA":      taID != 0,
@@ -300,7 +302,7 @@ func (h *KasHandler) PengeluaranCreate(c *gin.Context) {
 	taID, _ := strconv.ParseUint(c.PostForm("ta"), 10, 64)
 	bulan, _ := strconv.Atoi(c.PostForm("bulan"))
 	if taID == 0 {
-		taID = h.activeTahunAjaranID()
+		taID = activeTahunAjaranID(h.DB)
 	}
 	kategoriID, _ := strconv.ParseUint(c.PostForm("kategori_id"), 10, 64)
 	jumlah := util.ParseRupiah(c.PostForm("jumlah"))

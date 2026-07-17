@@ -34,7 +34,7 @@
 <!-- Ringkasan -->
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
   <div class="rounded-xl border border-primary-200 bg-primary-50 p-5">
-    <p class="text-sm text-primary-700">Saldo Tabungan (setoran penuh)</p>
+    <p class="text-sm text-primary-700">Saldo Tabungan (mengendap)</p>
     <p class="mt-1 text-xl font-bold text-primary-800">{{ rupiah .TotalSaldo }}</p>
   </div>
   <div class="rounded-xl border border-slate-200 bg-white p-5">
@@ -47,7 +47,7 @@
   </div>
 </div>
 {{ if not .Closed }}
-<p class="text-xs text-slate-400 mb-5">Potongan {{ .Persen }}% baru diambil & masuk kas saat <span class="font-medium">tutup tabungan</span>. Selama belum ditutup, saldo = setoran penuh.</p>
+<p class="text-xs text-slate-400 mb-5">Potongan {{ .Persen }}% baru direalisasikan saat <span class="font-medium">tutup tabungan</span>, hanya atas saldo yang mengendap. Pencairan sewaktu-waktu keluar dari kas tanpa potongan.</p>
 {{ else }}
 <div class="mb-5"></div>
 {{ end }}
@@ -93,7 +93,7 @@
         <th class="px-5 py-3 font-medium">Nama Siswa</th>
         <th class="px-5 py-3 font-medium text-right">Setoran Terakhir</th>
         <th class="px-5 py-3 font-medium">Tgl Setoran Terakhir</th>
-        <th class="px-5 py-3 font-medium text-right">Saldo Setoran</th>
+        <th class="px-5 py-3 font-medium text-right">Saldo</th>
         <th class="px-5 py-3 font-medium text-right">Aksi</th>
       </tr>
     </thead>
@@ -122,6 +122,10 @@
       <button hx-get="{{ printf "/tabungan/riwayat/%d?kelas=%d" .Siswa.ID $kelas }}" hx-target="#modal-root" hx-swap="innerHTML"
               class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">Riwayat</button>
       {{ if and $canEdit (not $closed) }}
+      {{ if gt .TotalSetor 0 }}
+      <button hx-get="{{ printf "/tabungan/cairkan-form/%d?kelas=%d" .Siswa.ID $kelas }}" hx-target="#modal-root" hx-swap="innerHTML"
+              class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100">Cairkan</button>
+      {{ end }}
       <button hx-get="{{ printf "/tabungan/setor-form/%d?kelas=%d" .Siswa.ID $kelas }}" hx-target="#modal-root" hx-swap="innerHTML"
               class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700">Setor</button>
       {{ end }}

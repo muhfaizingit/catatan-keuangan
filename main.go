@@ -42,8 +42,8 @@ func main() {
 
 	r := gin.Default()
 	r.SetFuncMap(template.FuncMap{
-		"dict":    dict,
-		"derefID": derefID,
+		"dict":      dict,
+		"derefID":   derefID,
 		"rupiah":    util.Rupiah,
 		"ribuan":    util.FormatThousands,
 		"tanggal":   func(t time.Time) string { return t.Format("02 Jan 2006") },
@@ -106,6 +106,7 @@ func seedSystemData(db *gorm.DB) error {
 		{models.KodeJenisSPP, "SPP", "Pemasukan dari pembayaran SPP (otomatis)"},
 		{models.KodeJenisDonasi, "Donasi/Bantuan", "Donasi & sisa dana bantuan (otomatis)"},
 		{models.KodeJenisPotonganTabungan, "Potongan Tabungan", "Potongan setoran tabungan siswa (otomatis)"},
+		{models.KodeJenisTabungan, "Tabungan Siswa", "Setoran tabungan siswa masuk kas (otomatis)"},
 		{models.KodeJenisTagihan, "Tagihan", "Pembayaran tagihan non-SPP (otomatis)"},
 		{models.KodeJenisSaldoAwal, "Saldo Awal", "Saldo kas awal dari tutup tahun (otomatis)"},
 		{models.KodeJenisPiutang, "Piutang", "Pembayaran piutang tahun sebelumnya (otomatis)"},
@@ -142,17 +143,23 @@ func seedSystemData(db *gorm.DB) error {
 		log.Printf("setting '%s' dibuat (default 5%%)", models.KeyPersenPotonganTabungan)
 	}
 
-	// Kategori pengeluaran bawaan "Gaji" (untuk auto-posting pembayaran gaji guru).
-	var kc int64
-	if err := db.Model(&models.KategoriPengeluaran{}).Where("kode = ?", models.KodeKategoriGaji).Count(&kc).Error; err != nil {
-		return err
+	// Kategori pengeluaran bawaan sistem (auto-posting).
+	kategoriSistem := []struct{ Kode, Nama string }{
+		{models.KodeKategoriGaji, "Gaji"},         // pembayaran gaji guru
+		{models.KodeKategoriTabungan, "Tabungan"}, // pencairan saldo tabungan saat tutup
 	}
-	if kc == 0 {
-		k := models.KategoriPengeluaran{Nama: "Gaji", Kode: models.KodeKategoriGaji, Aktif: true}
-		if err := db.Create(&k).Error; err != nil {
+	for _, kd := range kategoriSistem {
+		var kc int64
+		if err := db.Model(&models.KategoriPengeluaran{}).Where("kode = ?", kd.Kode).Count(&kc).Error; err != nil {
 			return err
 		}
-		log.Printf("kategori pengeluaran '%s' dibuat", models.KodeKategoriGaji)
+		if kc == 0 {
+			k := models.KategoriPengeluaran{Nama: kd.Nama, Kode: kd.Kode, Aktif: true}
+			if err := db.Create(&k).Error; err != nil {
+				return err
+			}
+			log.Printf("kategori pengeluaran '%s' dibuat", kd.Kode)
+		}
 	}
 	return nil
 }

@@ -21,6 +21,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&DanaBantuan{},
 		&Setting{},
 		&TabunganSetoran{},
+		&TabunganPenarikan{},
 		&TutupTabungan{},
 		&JenisTagihan{},
 		&Tagihan{},

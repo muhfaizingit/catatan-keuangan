@@ -20,9 +20,10 @@ type KasPemasukan struct {
 	// DanaBantuanID terisi bila baris ini berasal dari dana bantuan
 	// (baris SPP via bantuan, atau baris donasi dari sisa dana).
 	DanaBantuanID *uint64 `json:"dana_bantuan_id"`
-	// TabunganSetoranID terisi bila baris ini potongan dari satu setoran (model lama).
+	// TabunganSetoranID terisi bila baris ini pemasukan dari satu setoran tabungan
+	// (uang setoran langsung masuk kas saat setor; potongan direalisasikan saat tutup).
 	TabunganSetoranID *uint64 `json:"tabungan_setoran_id"`
-	// TutupTabunganID terisi bila baris ini potongan agregat hasil tutup tabungan.
+	// TutupTabunganID terisi bila baris ini potongan agregat hasil tutup tabungan (model lama).
 	TutupTabunganID *uint64 `json:"tutup_tabungan_id"`
 	// TagihanPembayaranID terisi bila baris ini dari pembayaran tagihan non-SPP.
 	TagihanPembayaranID *uint64 `json:"tagihan_pembayaran_id"`
@@ -45,7 +46,8 @@ func (k KasPemasukan) DariSPP() bool { return k.SppPembayaranID != nil }
 // DariBantuan menandakan baris ini berasal dari dana bantuan (donasi sisa).
 func (k KasPemasukan) DariBantuan() bool { return k.DanaBantuanID != nil && k.SppPembayaranID == nil }
 
-// DariTabungan menandakan baris ini potongan tabungan (per setoran atau tutup).
+// DariTabungan menandakan baris ini dari tabungan (setoran masuk kas, atau
+// potongan agregat model lama).
 func (k KasPemasukan) DariTabungan() bool {
 	return k.TabunganSetoranID != nil || k.TutupTabunganID != nil
 }
@@ -79,10 +81,31 @@ type KasPengeluaran struct {
 	UserID        uint64    `gorm:"not null" json:"user_id"`
 	CreatedAt     time.Time `json:"created_at"`
 
+	// TutupTabunganID terisi bila baris ini "pencairan tabungan" hasil tutup tabungan
+	// (saldo bersih siswa dikeluarkan lagi dari kas). Kolom tanpa index (privilege DB).
+	TutupTabunganID *uint64 `json:"tutup_tabungan_id"`
+	// TabunganPenarikanID terisi bila baris ini pencairan tabungan per siswa
+	// sewaktu-waktu (tengah tahun). Kolom tanpa index (privilege DB).
+	TabunganPenarikanID *uint64 `json:"tabungan_penarikan_id"`
+
 	TahunAjaran TahunAjaran             `gorm:"foreignKey:TahunAjaranID" json:"tahun_ajaran"`
-	Kategori    KategoriPengeluaran    `gorm:"foreignKey:KategoriID" json:"kategori"`
+	Kategori    KategoriPengeluaran     `gorm:"foreignKey:KategoriID" json:"kategori"`
 	SubKategori *SubKategoriPengeluaran `gorm:"foreignKey:SubKategoriID" json:"sub_kategori"`
-	User        User                   `gorm:"foreignKey:UserID" json:"user"`
+	User        User                    `gorm:"foreignKey:UserID" json:"user"`
 }
 
 func (KasPengeluaran) TableName() string { return "kas_pengeluaran" }
+
+// DariTutupTabungan menandakan baris ini pencairan saldo tabungan saat tutup.
+func (k KasPengeluaran) DariTutupTabungan() bool { return k.TutupTabunganID != nil }
+
+// DariTabungan menandakan baris ini dari tabungan (pencairan tutup atau
+// pencairan per siswa sewaktu-waktu).
+func (k KasPengeluaran) DariTabungan() bool {
+	return k.TutupTabunganID != nil || k.TabunganPenarikanID != nil
+}
+
+// Terkunci: baris otomatis (pencairan tabungan) tidak boleh dihapus manual dari Kas.
+func (k KasPengeluaran) Terkunci() bool {
+	return k.TutupTabunganID != nil || k.TabunganPenarikanID != nil
+}

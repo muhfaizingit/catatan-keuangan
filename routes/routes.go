@@ -24,6 +24,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	tutupTahunH := handlers.NewTutupTahunHandler(db)
 	piutangH := handlers.NewPiutangHandler(db)
 	gajiH := handlers.NewGajiHandler(db)
+	laporanH := handlers.NewLaporanHandler(db)
 
 	// Rute publik
 	r.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/dashboard") })
@@ -61,6 +62,8 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 
 			// Siswa
 			master.GET("/siswa", masterH.SiswaIndex)
+			master.GET("/siswa/import", masterH.SiswaImportForm)
+			master.POST("/siswa/import", masterH.SiswaImport)
 			master.GET("/siswa/new", masterH.SiswaForm)
 			master.GET("/siswa/:id/edit", masterH.SiswaForm)
 			master.POST("/siswa", masterH.SiswaCreate)
@@ -152,6 +155,9 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		app.GET("/tabungan", view, tabunganH.Index)
 		app.GET("/tabungan/setor-form/:id", write, tabunganH.SetorForm)
 		app.POST("/tabungan/setor", write, tabunganH.Setor)
+		app.GET("/tabungan/cairkan-form/:id", write, tabunganH.CairkanForm)
+		app.POST("/tabungan/cairkan", write, tabunganH.Cairkan)
+		app.DELETE("/tabungan/penarikan/:id", write, tabunganH.HapusPenarikan)
 		app.GET("/tabungan/bulk-form", write, tabunganH.BulkForm)
 		app.GET("/tabungan/bulk-siswa", write, tabunganH.BulkSiswaOptions)
 		app.POST("/tabungan/bulk", write, tabunganH.Bulk)
@@ -190,6 +196,12 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		app.POST("/gaji/:id/bayar", write, gajiH.Bayar)
 		app.GET("/gaji/:id/riwayat", view, gajiH.RiwayatForm)
 		app.DELETE("/gaji/pembayaran/:id", write, gajiH.HapusPembayaran)
+
+		// ---- Laporan (semua role) ----
+		app.GET("/laporan/kas", laporanH.LaporanKas)
+		app.GET("/laporan/kas/cetak", laporanH.CetakKas)
+		app.GET("/laporan/tabungan", laporanH.LaporanTabungan)
+		app.GET("/laporan/spp", laporanH.LaporanSPP)
 
 		// ---- Tutup Tahun (admin) ----
 		adminOnly := middleware.RequireRole(string(models.RoleAdmin))

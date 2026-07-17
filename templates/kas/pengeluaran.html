@@ -52,11 +52,14 @@
   <td class="px-5 py-3">
     <span class="font-medium text-slate-800">{{ .Kategori.Nama }}</span>
     {{ if .SubKategori }}<span class="text-slate-400"> · {{ .SubKategori.Nama }}</span>{{ end }}
+    {{ if .DariTabungan }}<span class="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">tabungan</span>{{ end }}
   </td>
   <td class="px-5 py-3 text-slate-500">{{ if .Keterangan }}{{ .Keterangan }}{{ else }}<span class="text-slate-300">—</span>{{ end }}</td>
   <td class="px-5 py-3 text-right font-semibold text-red-600 whitespace-nowrap">{{ rupiah .Jumlah }}</td>
   <td class="px-5 py-3 text-right">
-    {{ if $canEdit }}
+    {{ if .Terkunci }}
+      <span class="text-slate-400 text-xs" title="Otomatis dari tutup tabungan — kelola di modul Tabungan">terkunci</span>
+    {{ else if $canEdit }}
     <button hx-delete="/kas/pengeluaran/{{ .ID }}?ta={{ $ta }}&bulan={{ $bulan }}" hx-swap="none"
             hx-confirm="Hapus pengeluaran {{ rupiah .Jumlah }} ({{ .Kategori.Nama }})?"
             class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50">Hapus</button>

@@ -23,6 +23,7 @@ const (
 	KodeJenisSPP              = "SPP"
 	KodeJenisDonasi           = "DONASI"
 	KodeJenisPotonganTabungan = "POTONGAN_TABUNGAN"
+	KodeJenisTabungan         = "TABUNGAN"
 	KodeJenisTagihan          = "TAGIHAN"
 	KodeJenisSaldoAwal        = "SALDO_AWAL"
 	KodeJenisPiutang          = "PIUTANG"

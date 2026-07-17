@@ -37,8 +37,12 @@
     {{ template "partials/nav_item" dict "Active" $active "Key" "tutup" "Href" "/tutup-tahun" "Label" "Tutup Tahun" "Soon" false }}
     {{ end }}
 
+    <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Laporan</p>
+    {{ template "partials/nav_item" dict "Active" $active "Key" "laporan-kas" "Href" "/laporan/kas" "Label" "Laporan Kas" "Soon" false }}
+    {{ template "partials/nav_item" dict "Active" $active "Key" "laporan-tabungan" "Href" "/laporan/tabungan" "Label" "Laporan Tabungan" "Soon" false }}
+    {{ template "partials/nav_item" dict "Active" $active "Key" "laporan-spp" "Href" "/laporan/spp" "Label" "Laporan SPP" "Soon" false }}
+
     <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lainnya</p>
-    {{ template "partials/nav_item" dict "Active" $active "Key" "laporan" "Href" "/laporan/kas" "Label" "Laporan" "Soon" true }}
     {{ if eq $role "admin" }}
     {{ template "partials/nav_item" dict "Active" $active "Key" "setting" "Href" "/setting" "Label" "Pengaturan" "Soon" true }}
     {{ end }}

@@ -1,0 +1,170 @@
+{{ define "laporan/kas" }}
+{{ template "partials/page_start" . }}
+
+<div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+  <div>
+    <h2 class="text-lg font-semibold text-slate-800">Laporan Kas</h2>
+    <p class="text-sm text-slate-500">{{ if .HasTA }}{{ .NamaTA }} · {{ .NamaBulan }} {{ .Tahun }}{{ else }}—{{ end }}</p>
+  </div>
+  {{ if .HasTA }}
+  <button onclick="window.print()"
+          class="hidden-print inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
+    Cetak
+  </button>
+  {{ end }}
+</div>
+
+{{ if not .HasTA }}
+<div class="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700">
+  Belum ada tahun ajaran. Buat & aktifkan dulu di <a href="/master/tahun-ajaran" class="underline font-medium">Master Data</a>.
+</div>
+{{ else }}
+
+{{/* ===== Filter bar (tersembunyi saat cetak) ===== */}}
+<form method="get" action="/laporan/kas"
+      class="hidden-print mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
+  <div>
+    <label class="block text-xs font-medium text-slate-500 mb-1">Tahun Ajaran</label>
+    <select name="ta" onchange="this.form.submit()"
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200">
+      {{ $sel := .SelectedTA }}
+      {{ range .TahunList }}
+      <option value="{{ .ID }}" {{ if eq .ID $sel }}selected{{ end }}>{{ .Nama }}{{ if .Aktif }} (aktif){{ end }}</option>
+      {{ end }}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-slate-500 mb-1">Bulan</label>
+    <select name="bulan" onchange="this.form.submit()"
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200">
+      {{ $b := .Bulan }}
+      {{ range seq 12 }}
+      <option value="{{ . }}" {{ if eq . $b }}selected{{ end }}>{{ namaBulan . }}</option>
+      {{ end }}
+    </select>
+  </div>
+</form>
+
+{{/* ===== Kartu ringkasan ===== */}}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="rounded-xl border border-slate-200 bg-white p-5">
+    <p class="text-sm text-slate-500">Saldo Awal</p>
+    <p class="mt-1 text-xl font-bold text-slate-700">{{ rupiah .SaldoAwal }}</p>
+    <p class="mt-1 text-[11px] text-slate-400">s/d akhir bulan lalu</p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-5">
+    <p class="text-sm text-slate-500">Pemasukan</p>
+    <p class="mt-1 text-xl font-bold text-green-600">{{ rupiah .TotalPemasukan }}</p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-5">
+    <p class="text-sm text-slate-500">Pengeluaran</p>
+    <p class="mt-1 text-xl font-bold text-red-600">{{ rupiah .TotalPengeluaran }}</p>
+  </div>
+  <div class="rounded-xl border border-primary-200 bg-primary-50 p-5">
+    <p class="text-sm text-primary-700">Saldo Akhir</p>
+    <p class="mt-1 text-xl font-bold text-primary-800">{{ rupiah .SaldoAkhir }}</p>
+  </div>
+</div>
+
+{{/* ===== Ringkasan per jenis & kategori ===== */}}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+  <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">Pemasukan per Jenis</div>
+    <table class="w-full text-sm">
+      <tbody class="divide-y divide-slate-100">
+        {{ if not .PerJenis }}
+        <tr><td class="px-5 py-4 text-center text-slate-400">Tidak ada pemasukan bulan ini.</td></tr>
+        {{ end }}
+        {{ range .PerJenis }}
+        <tr>
+          <td class="px-5 py-2.5 text-slate-700">{{ .Nama }}</td>
+          <td class="px-5 py-2.5 text-right font-medium text-green-600 whitespace-nowrap">{{ rupiah .Jumlah }}</td>
+        </tr>
+        {{ end }}
+        {{ if .PerJenis }}
+        <tr class="bg-slate-50">
+          <td class="px-5 py-2.5 font-semibold text-slate-800">Total</td>
+          <td class="px-5 py-2.5 text-right font-bold text-green-600 whitespace-nowrap">{{ rupiah .TotalPemasukan }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">Pengeluaran per Kategori</div>
+    <table class="w-full text-sm">
+      <tbody class="divide-y divide-slate-100">
+        {{ if not .PerKategori }}
+        <tr><td class="px-5 py-4 text-center text-slate-400">Tidak ada pengeluaran bulan ini.</td></tr>
+        {{ end }}
+        {{ range .PerKategori }}
+        <tr>
+          <td class="px-5 py-2.5 text-slate-700">{{ .Nama }}</td>
+          <td class="px-5 py-2.5 text-right font-medium text-red-600 whitespace-nowrap">{{ rupiah .Jumlah }}</td>
+        </tr>
+        {{ end }}
+        {{ if .PerKategori }}
+        <tr class="bg-slate-50">
+          <td class="px-5 py-2.5 font-semibold text-slate-800">Total</td>
+          <td class="px-5 py-2.5 text-right font-bold text-red-600 whitespace-nowrap">{{ rupiah .TotalPengeluaran }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{{/* ===== Daftar transaksi ===== */}}
+<div class="rounded-xl border border-slate-200 bg-white overflow-x-auto">
+  <div class="px-5 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700 flex justify-between">
+    <span>Daftar Transaksi</span>
+    <span class="text-slate-400 font-normal">{{ .JumlahTrx }} transaksi</span>
+  </div>
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100">
+        <th class="px-5 py-3 font-medium">Tanggal</th>
+        <th class="px-5 py-3 font-medium">Uraian</th>
+        <th class="px-5 py-3 font-medium">Keterangan</th>
+        <th class="px-5 py-3 font-medium text-right">Masuk</th>
+        <th class="px-5 py-3 font-medium text-right">Keluar</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {{ if eq .JumlahTrx 0 }}
+      <tr><td colspan="5" class="px-5 py-10 text-center text-slate-400">Belum ada transaksi pada periode ini.</td></tr>
+      {{ end }}
+
+      {{/* Iterasi pemasukan */}}
+      {{ range .Pemasukan }}
+      <tr class="hover:bg-slate-50">
+        <td class="px-5 py-3 whitespace-nowrap text-slate-600">{{ tanggal .Tanggal }}</td>
+        <td class="px-5 py-3 font-medium text-slate-800">{{ if .JenisPemasukan.Nama }}{{ .JenisPemasukan.Nama }}{{ else }}Pemasukan{{ end }}</td>
+        <td class="px-5 py-3 text-slate-500">{{ if .Keterangan }}{{ .Keterangan }}{{ else }}<span class="text-slate-300">—</span>{{ end }}</td>
+        <td class="px-5 py-3 text-right font-medium text-green-600 whitespace-nowrap">{{ rupiah .Jumlah }}</td>
+        <td class="px-5 py-3 text-right text-slate-300">—</td>
+      </tr>
+      {{ end }}
+
+      {{/* Iterasi pengeluaran */}}
+      {{ range .Pengeluaran }}
+      <tr class="hover:bg-slate-50">
+        <td class="px-5 py-3 whitespace-nowrap text-slate-600">{{ tanggal .Tanggal }}</td>
+        <td class="px-5 py-3 font-medium text-slate-800">
+          {{ if .Kategori.Nama }}{{ .Kategori.Nama }}{{ else }}Pengeluaran{{ end }}{{ if .SubKategori.Nama }} · {{ .SubKategori.Nama }}{{ end }}
+        </td>
+        <td class="px-5 py-3 text-slate-500">{{ if .Keterangan }}{{ .Keterangan }}{{ else }}<span class="text-slate-300">—</span>{{ end }}</td>
+        <td class="px-5 py-3 text-right text-slate-300">—</td>
+        <td class="px-5 py-3 text-right font-medium text-red-600 whitespace-nowrap">{{ rupiah .Jumlah }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+
+{{ end }}
+
+{{ template "partials/page_end" . }}
+{{ end }}

@@ -1,0 +1,40 @@
+{{ define "master/siswa_import_result" }}
+{{ template "components/modal_start" . }}
+
+{{/* Refresh tabel siswa via out-of-band swap */}}
+{{ template "master/siswa_content_oob" . }}
+
+<div class="space-y-3">
+  <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-2">
+    <svg class="h-5 w-5 text-green-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+    <p class="text-sm font-semibold text-green-800">{{ .Result.Ditambah }} siswa berhasil ditambahkan.</p>
+  </div>
+
+  {{ if .Result.Dilewati }}
+  <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+    <p class="text-sm font-medium text-amber-800 mb-1">{{ len .Result.Dilewati }} dilewati — NIS sudah terdaftar / duplikat:</p>
+    <ul class="text-xs text-amber-700 list-disc list-inside max-h-32 overflow-y-auto space-y-0.5">
+      {{ range .Result.Dilewati }}<li>{{ . }}</li>{{ end }}
+    </ul>
+  </div>
+  {{ end }}
+
+  {{ if .Result.Gagal }}
+  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+    <p class="text-sm font-medium text-red-800 mb-1">{{ len .Result.Gagal }} baris gagal — NIS atau Nama kosong:</p>
+    <ul class="text-xs text-red-700 list-disc list-inside max-h-32 overflow-y-auto font-mono space-y-0.5">
+      {{ range .Result.Gagal }}<li>{{ . }}</li>{{ end }}
+    </ul>
+  </div>
+  {{ end }}
+</div>
+
+<div class="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+  <button type="button" hx-get="/master/siswa/import" hx-target="#modal-root" hx-swap="innerHTML"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Import lagi</button>
+  <button type="button" onclick="closeModal()"
+          class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700">Selesai</button>
+</div>
+
+{{ template "components/modal_end" . }}
+{{ end }}

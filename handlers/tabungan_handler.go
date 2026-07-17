@@ -56,8 +56,9 @@ type tutupAlokasi struct {
 
 // tutupPlan = rencana lengkap tutup tabungan se-sekolah.
 type tutupPlan struct {
-	TotalSetor          int64
-	TotalPotong         int64
+	TotalSetor          int64 // total setoran kotor (informasi)
+	TotalPotong         int64 // potongan efektif atas saldo yang mengendap
+	TotalBersih         int64 // saldo bersih yang dikeluarkan dari kas saat tutup
 	TotalBayarTunggakan int64
 	TotalDiserahkan     int64
 	JumlahSiswa         int
@@ -93,10 +94,38 @@ func (h *TabunganHandler) planTutup(taID uint64) tutupPlan {
 		Where("tahun_ajaran_id = ?", taID).Group("siswa_id").Scan(&sps)
 	plan.JumlahSiswa = len(sps)
 
+	// Total penarikan (pencairan sewaktu-waktu) per siswa. Dikurangkan dari saldo
+	// dan TIDAK kena potongan — potongan hanya atas saldo yang mengendap.
+	ditarikMap := map[uint64]int64{}
+	{
+		type dp struct {
+			SiswaID uint64
+			Total   int64
+		}
+		var dps []dp
+		h.DB.Model(&models.TabunganPenarikan{}).
+			Select("siswa_id, COALESCE(SUM(jumlah),0) as total").
+			Where("tahun_ajaran_id = ?", taID).Group("siswa_id").Scan(&dps)
+		for _, d := range dps {
+			ditarikMap[d.SiswaID] = d.Total
+		}
+	}
+
 	for _, s := range sps {
+		saldo := s.Setor - ditarikMap[s.SiswaID] // saldo mengendap (kotor)
+		if saldo < 0 {
+			saldo = 0
+		}
+		// Potongan efektif = potongan snapshot diproporsikan ke saldo yang
+		// mengendap. Tanpa penarikan, hasilnya sama dengan potongan snapshot.
+		var potong int64
+		if s.Setor > 0 {
+			potong = int64(math.Round(float64(s.Potong) * float64(saldo) / float64(s.Setor)))
+		}
 		plan.TotalSetor += s.Setor
-		plan.TotalPotong += s.Potong
-		remaining := s.Setor - s.Potong
+		plan.TotalPotong += potong
+		remaining := saldo - potong
+		plan.TotalBersih += remaining
 
 		var siswa models.Siswa
 		h.DB.First(&siswa, s.SiswaID)
@@ -181,12 +210,14 @@ func (h *TabunganHandler) kelasByTA(taID uint64) []models.Kelas {
 	return list
 }
 
-// recordSetoran membuat satu setoran tabungan.
+// recordSetoran membuat satu setoran tabungan dan langsung memposting uangnya
+// ke kas sebagai pemasukan (penuh).
 //
-// Catatan penting: potongan TIDAK diposting ke kas saat setor. Persen & jumlah
-// potongan hanya di-snapshot (JumlahPotong = calon potongan) dan baru diakui ke
-// kas saat tabungan ditutup (Tutup Tahun, Phase 6). Selama belum ditutup, saldo
-// siswa = total setoran penuh dan kas belum menerima potongan apa pun.
+// Catatan penting: uang setoran (penuh) langsung masuk kas saat setor. Potongan
+// hanya di-snapshot (JumlahPotong = calon potongan) dan baru direalisasikan saat
+// tabungan ditutup — di mana saldo bersih dikeluarkan lagi dari kas, sehingga
+// potongan efektif tertahan di kas. Baris kas ditautkan ke setoran (TabunganSetoranID)
+// agar ikut terhapus otomatis bila setoran dihapus.
 func (h *TabunganHandler) recordSetoran(tx *gorm.DB, siswa models.Siswa, taID uint64, setor int64, persen float64, tanggal time.Time, ket string, userID uint64) error {
 	potong := hitungPotong(setor, persen)
 	st := models.TabunganSetoran{
@@ -194,15 +225,26 @@ func (h *TabunganHandler) recordSetoran(tx *gorm.DB, siswa models.Siswa, taID ui
 		JumlahSetor: setor, PersenPotong: persen, JumlahPotong: potong,
 		JumlahBersih: setor - potong, Keterangan: ket, UserID: userID,
 	}
-	return tx.Create(&st).Error
+	if err := tx.Create(&st).Error; err != nil {
+		return err
+	}
+	var jenis models.JenisPemasukan
+	if err := tx.Where("kode = ?", models.KodeJenisTabungan).First(&jenis).Error; err != nil {
+		return err
+	}
+	return tx.Create(&models.KasPemasukan{
+		TahunAjaranID: taID, JenisPemasukanID: jenis.ID, Tanggal: tanggal,
+		Jumlah: setor, Keterangan: "Tabungan — " + siswa.Nama, UserID: userID,
+		TabunganSetoranID: &st.ID,
+	}).Error
 }
 
 // TabunganRow merangkum posisi tabungan satu siswa.
-// Saldo (= TotalSetor) adalah setoran penuh karena potongan baru diambil saat
-// tutup. PerkiraanPotong & PerkiraanBersih hanya info calon saat tutup.
+// TotalSetor di sini = saldo mengendap saat ini (setoran − penarikan); potongan
+// baru diambil saat tutup, jadi saldo belum dipotong.
 type TabunganRow struct {
 	Siswa       models.Siswa
-	TotalSetor  int64     // = saldo saat ini (setoran penuh)
+	TotalSetor  int64     // = saldo mengendap saat ini (setoran − penarikan)
 	LastAmount  int64     // jumlah setoran terakhir
 	LastTanggal time.Time // tanggal setoran terakhir (zero bila belum ada)
 }
@@ -225,9 +267,9 @@ func (h *TabunganHandler) context(c *gin.Context) gin.H {
 
 	// Muat setoran siswa di kelas (untuk agregat + setoran terakhir).
 	type sums struct {
-		setor, potong, bersih int64
-		last                  models.TabunganSetoran
-		hasLast               bool
+		setor, potong, ditarik int64
+		last                   models.TabunganSetoran
+		hasLast                bool
 	}
 	acc := map[uint64]*sums{}
 	if hasTA && len(siswaList) > 0 {
@@ -246,10 +288,20 @@ func (h *TabunganHandler) context(c *gin.Context) gin.H {
 			}
 			a.setor += st.JumlahSetor
 			a.potong += st.JumlahPotong
-			a.bersih += st.JumlahBersih
 			if !a.hasLast { // baris pertama (urut desc) = setoran terakhir
 				a.last, a.hasLast = st, true
 			}
+		}
+		// Penarikan (pencairan sewaktu-waktu) mengurangi saldo.
+		var penarikan []models.TabunganPenarikan
+		h.DB.Where("tahun_ajaran_id = ? AND siswa_id IN ?", ta.ID, ids).Find(&penarikan)
+		for _, p := range penarikan {
+			a := acc[p.SiswaID]
+			if a == nil {
+				a = &sums{}
+				acc[p.SiswaID] = a
+			}
+			a.ditarik += p.Jumlah
 		}
 	}
 
@@ -260,15 +312,24 @@ func (h *TabunganHandler) context(c *gin.Context) gin.H {
 		if a == nil {
 			a = &sums{}
 		}
-		row := TabunganRow{Siswa: s, TotalSetor: a.setor}
+		saldo := a.setor - a.ditarik // saldo mengendap saat ini
+		if saldo < 0 {
+			saldo = 0
+		}
+		// Perkiraan potongan (proporsional ke saldo mengendap) & bersih saat tutup.
+		var potongEff int64
+		if a.setor > 0 {
+			potongEff = int64(math.Round(float64(a.potong) * float64(saldo) / float64(a.setor)))
+		}
+		row := TabunganRow{Siswa: s, TotalSetor: saldo}
 		if a.hasLast {
 			row.LastAmount = a.last.JumlahSetor
 			row.LastTanggal = a.last.Tanggal
 		}
 		rows = append(rows, row)
-		totSetor += a.setor
-		totPotong += a.potong
-		totBersih += a.bersih
+		totSetor += saldo
+		totPotong += potongEff
+		totBersih += saldo - potongEff
 	}
 
 	tutup, closed := models.TutupTabungan{}, false
@@ -283,7 +344,7 @@ func (h *TabunganHandler) context(c *gin.Context) gin.H {
 		"KelasList":     kelasList,
 		"SelectedKelas": kelasID,
 		"Rows":          rows,
-		"TotalSaldo":    totSetor, // saldo = setoran penuh (potongan belum diambil)
+		"TotalSaldo":    totSetor, // saldo mengendap (setoran − penarikan; potongan belum diambil)
 		"TotalPotong":   totPotong,
 		"TotalBersih":   totBersih,
 		"Closed":        closed,
@@ -495,11 +556,20 @@ func (h *TabunganHandler) riwayatData(c *gin.Context, siswaID uint64) (gin.H, bo
 	var list []models.TabunganSetoran
 	q.Order("tanggal desc, id desc").Find(&list)
 
-	// Saldo = total setoran penuh (seluruh bulan di TA), tidak ikut terfilter.
-	var saldo int64
+	// Saldo = total setoran − total penarikan (seluruh bulan di TA), tidak terfilter.
+	var totSetor, totDitarik int64
 	h.DB.Model(&models.TabunganSetoran{}).
 		Where("siswa_id = ? AND tahun_ajaran_id = ?", siswaID, ta.ID).
-		Select("COALESCE(SUM(jumlah_setor),0)").Scan(&saldo)
+		Select("COALESCE(SUM(jumlah_setor),0)").Scan(&totSetor)
+	h.DB.Model(&models.TabunganPenarikan{}).
+		Where("siswa_id = ? AND tahun_ajaran_id = ?", siswaID, ta.ID).
+		Select("COALESCE(SUM(jumlah),0)").Scan(&totDitarik)
+	saldo := totSetor - totDitarik
+
+	// Daftar penarikan (semua bulan) untuk ditampilkan & bisa dihapus.
+	var penarikan []models.TabunganPenarikan
+	h.DB.Where("siswa_id = ? AND tahun_ajaran_id = ?", siswaID, ta.ID).
+		Order("tanggal desc, id desc").Find(&penarikan)
 
 	// Subtotal setoran pada filter aktif.
 	var subtotal int64
@@ -509,8 +579,9 @@ func (h *TabunganHandler) riwayatData(c *gin.Context, siswaID uint64) (gin.H, bo
 
 	return gin.H{
 		"Title": "Riwayat Tabungan", "Siswa": siswa, "List": list, "Saldo": saldo,
-		"Bulan": bulan, "Subtotal": subtotal,
-		"Kelas": c.Query("kelas"), "CanEdit": canEditKas(c),
+		"Bulan": bulan, "Subtotal": subtotal, "Penarikan": penarikan, "TotalDitarik": totDitarik,
+		"Closed": h.isClosed(ta.ID),
+		"Kelas":  c.Query("kelas"), "CanEdit": canEditKas(c),
 	}, true
 }
 
@@ -569,6 +640,146 @@ func (h *TabunganHandler) HapusSetoran(c *gin.Context) {
 	c.HTML(http.StatusOK, "tabungan/riwayat_after", data)
 }
 
+// ---------- pencairan sewaktu-waktu per siswa ----------
+
+// saldoSiswa = total setoran − total penarikan pada satu TA.
+func (h *TabunganHandler) saldoSiswa(taID, siswaID uint64) int64 {
+	var setor, ditarik int64
+	h.DB.Model(&models.TabunganSetoran{}).
+		Where("tahun_ajaran_id = ? AND siswa_id = ?", taID, siswaID).
+		Select("COALESCE(SUM(jumlah_setor),0)").Scan(&setor)
+	h.DB.Model(&models.TabunganPenarikan{}).
+		Where("tahun_ajaran_id = ? AND siswa_id = ?", taID, siswaID).
+		Select("COALESCE(SUM(jumlah),0)").Scan(&ditarik)
+	return setor - ditarik
+}
+
+func (h *TabunganHandler) CairkanForm(c *gin.Context) {
+	ta, hasTA := h.activeTA()
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var siswa models.Siswa
+	if h.DB.First(&siswa, id).Error != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	saldo := int64(0)
+	if hasTA {
+		saldo = h.saldoSiswa(ta.ID, id)
+	}
+	c.HTML(http.StatusOK, "tabungan/cairkan_form", gin.H{
+		"Title": "Cairkan Tabungan", "Siswa": siswa, "Saldo": saldo,
+		"Kelas": c.Query("kelas"), "Today": time.Now().Format("2006-01-02"),
+	})
+}
+
+func (h *TabunganHandler) cairkanFormErr(c *gin.Context, siswa models.Siswa, saldo int64, msg string) {
+	c.HTML(http.StatusOK, "tabungan/cairkan_form", gin.H{
+		"Title": "Cairkan Tabungan", "Siswa": siswa, "Saldo": saldo, "Error": msg,
+		"Kelas": c.PostForm("kelas"), "Today": time.Now().Format("2006-01-02"),
+		"Jumlah": c.PostForm("jumlah"), "Keterangan": c.PostForm("keterangan"),
+	})
+}
+
+func (h *TabunganHandler) Cairkan(c *gin.Context) {
+	ta, hasTA := h.activeTA()
+	siswaID, _ := strconv.ParseUint(c.PostForm("siswa_id"), 10, 64)
+	var siswa models.Siswa
+	if h.DB.First(&siswa, siswaID).Error != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	if !hasTA {
+		h.cairkanFormErr(c, siswa, 0, "Belum ada tahun ajaran aktif.")
+		return
+	}
+	saldo := h.saldoSiswa(ta.ID, siswaID)
+	if h.isClosed(ta.ID) {
+		h.cairkanFormErr(c, siswa, saldo, "Tabungan tahun ajaran ini sudah ditutup.")
+		return
+	}
+	jumlah := util.ParseRupiah(c.PostForm("jumlah"))
+	if jumlah <= 0 {
+		h.cairkanFormErr(c, siswa, saldo, "Jumlah pencairan harus lebih dari 0.")
+		return
+	}
+	if jumlah > saldo {
+		h.cairkanFormErr(c, siswa, saldo, "Jumlah melebihi saldo tabungan ("+util.Rupiah(saldo)+").")
+		return
+	}
+	tanggal := util.ParseDate(c.PostForm("tanggal"), time.Now())
+	userID := ctxUserID(c)
+
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		pen := models.TabunganPenarikan{
+			SiswaID: siswa.ID, TahunAjaranID: ta.ID, Tanggal: tanggal,
+			Jumlah: jumlah, Keterangan: c.PostForm("keterangan"), UserID: userID,
+		}
+		if err := tx.Create(&pen).Error; err != nil {
+			return err
+		}
+		var kat models.KategoriPengeluaran
+		if err := tx.Where("kode = ?", models.KodeKategoriTabungan).First(&kat).Error; err != nil {
+			return err
+		}
+		return tx.Create(&models.KasPengeluaran{
+			TahunAjaranID: ta.ID, KategoriID: kat.ID, Tanggal: tanggal, Jumlah: jumlah,
+			Keterangan: "Pencairan tabungan — " + siswa.Nama, UserID: userID,
+			TabunganPenarikanID: &pen.ID,
+		}).Error
+	})
+	if err != nil {
+		h.cairkanFormErr(c, siswa, saldo, "Gagal menyimpan pencairan.")
+		return
+	}
+	kelasID := uint64(0)
+	if siswa.KelasID != nil {
+		kelasID = *siswa.KelasID
+	}
+	c.Header("HX-Trigger", `{"toast":{"type":"success","msg":"Pencairan `+util.Rupiah(jumlah)+` tersimpan & keluar dari kas."}}`)
+	h.refresh(c, kelasID)
+}
+
+func (h *TabunganHandler) HapusPenarikan(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var pen models.TabunganPenarikan
+	if h.DB.First(&pen, id).Error != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	if h.isClosed(pen.TahunAjaranID) {
+		c.Header("HX-Trigger", `{"toast":{"type":"error","msg":"Tabungan sudah ditutup; pencairan tidak bisa dihapus."}}`)
+		data, ok := h.riwayatData(c, pen.SiswaID)
+		if ok {
+			c.HTML(http.StatusOK, "tabungan/riwayat_body", data)
+			return
+		}
+		c.Status(http.StatusOK)
+		return
+	}
+	siswaID := pen.SiswaID
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("tabungan_penarikan_id = ?", id).Delete(&models.KasPengeluaran{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.TabunganPenarikan{}, id).Error
+	})
+	if err != nil {
+		c.Header("HX-Trigger", `{"toast":{"type":"error","msg":"Gagal menghapus pencairan."}}`)
+	} else {
+		c.Header("HX-Trigger", `{"toast":{"type":"success","msg":"Pencairan dibatalkan & kas disesuaikan."}}`)
+	}
+
+	data, ok := h.riwayatData(c, siswaID)
+	kelasID, _ := strconv.ParseUint(c.Query("kelas"), 10, 64)
+	if !ok {
+		h.refresh(c, kelasID)
+		return
+	}
+	c.Request.URL.RawQuery = "kelas=" + strconv.FormatUint(kelasID, 10)
+	data["List2"] = h.context(c)
+	c.HTML(http.StatusOK, "tabungan/riwayat_after", data)
+}
+
 // ---------- ubah persen potongan ----------
 
 func (h *TabunganHandler) PersenForm(c *gin.Context) {
@@ -607,7 +818,7 @@ func (h *TabunganHandler) TutupForm(c *gin.Context) {
 	p := h.planTutup(ta.ID)
 	c.HTML(http.StatusOK, "tabungan/tutup_form", gin.H{
 		"Title": "Tutup Tabungan", "HasTA": true, "TANama": ta.Nama,
-		"TotalSetor": p.TotalSetor, "TotalPotong": p.TotalPotong, "TotalBersih": p.TotalSetor - p.TotalPotong,
+		"TotalSetor": p.TotalSetor, "TotalPotong": p.TotalPotong, "TotalBersih": p.TotalBersih,
 		"TotalBayarTunggakan": p.TotalBayarTunggakan, "TotalDiserahkan": p.TotalDiserahkan,
 		"JumlahSiswa": p.JumlahSiswa, "Persen": models.PersenPotonganTabungan(h.DB),
 		"Kelas": c.Query("kelas"), "Today": time.Now().Format("2006-01-02"),
@@ -635,7 +846,7 @@ func (h *TabunganHandler) Tutup(c *gin.Context) {
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
 		tutup := models.TutupTabungan{
 			TahunAjaranID: ta.ID, Tanggal: tanggal,
-			TotalSetor: p.TotalSetor, TotalPotong: p.TotalPotong, TotalBersih: p.TotalSetor - p.TotalPotong,
+			TotalSetor: p.TotalSetor, TotalPotong: p.TotalPotong, TotalBersih: p.TotalBersih,
 			TotalBayarTunggakan: p.TotalBayarTunggakan, TotalDiserahkan: p.TotalDiserahkan,
 			JumlahSiswa: p.JumlahSiswa, Keterangan: c.PostForm("keterangan"), UserID: userID,
 		}
@@ -643,15 +854,20 @@ func (h *TabunganHandler) Tutup(c *gin.Context) {
 			return err
 		}
 
-		// Potongan agregat -> kas.
-		if p.TotalPotong > 0 {
-			var jenis models.JenisPemasukan
-			if err := tx.Where("kode = ?", models.KodeJenisPotonganTabungan).First(&jenis).Error; err != nil {
+		// Saldo bersih siswa dikeluarkan lagi dari kas (uang setoran sudah masuk
+		// penuh saat setor, jadi potongan sekolah otomatis tertahan di kas).
+		// Bagian bersih yang melunasi tunggakan tetap dicatat sebagai pemasukan
+		// SPP/Tagihan di bawah, sehingga efektif hanya sisa yang benar-benar
+		// diserahkan ke siswa yang berkurang dari kas.
+		bersih := p.TotalBersih
+		if bersih > 0 {
+			var kat models.KategoriPengeluaran
+			if err := tx.Where("kode = ?", models.KodeKategoriTabungan).First(&kat).Error; err != nil {
 				return err
 			}
-			if err := tx.Create(&models.KasPemasukan{
-				TahunAjaranID: ta.ID, JenisPemasukanID: jenis.ID, Tanggal: tanggal,
-				Jumlah: p.TotalPotong, Keterangan: "Potongan tabungan (tutup) — " + ta.Nama,
+			if err := tx.Create(&models.KasPengeluaran{
+				TahunAjaranID: ta.ID, KategoriID: kat.ID, Tanggal: tanggal,
+				Jumlah: bersih, Keterangan: "Pencairan tabungan (tutup) — " + ta.Nama,
 				UserID: userID, TutupTabunganID: &tutup.ID,
 			}).Error; err != nil {
 				return err
@@ -709,7 +925,7 @@ func (h *TabunganHandler) Tutup(c *gin.Context) {
 	if err != nil {
 		c.Header("HX-Trigger", `{"toast":{"type":"error","msg":"Gagal menutup tabungan."}}`)
 	} else {
-		msg := "Tabungan ditutup. Ke kas: potongan " + util.Rupiah(p.TotalPotong) + " + pelunasan tunggakan " + util.Rupiah(p.TotalBayarTunggakan) + "."
+		msg := "Tabungan ditutup. Pencairan dari kas " + util.Rupiah(p.TotalBersih) + " (potongan " + util.Rupiah(p.TotalPotong) + " tertahan; pelunasan tunggakan " + util.Rupiah(p.TotalBayarTunggakan) + ")."
 		c.Header("HX-Trigger", `{"toast":{"type":"success","msg":"`+msg+`"}}`)
 	}
 	kelasID, _ := strconv.ParseUint(c.PostForm("kelas"), 10, 64)
@@ -725,8 +941,8 @@ func (h *TabunganHandler) BatalTutup(c *gin.Context) {
 	tutup, ok := h.tutupRecord(ta.ID)
 	if ok {
 		h.DB.Transaction(func(tx *gorm.DB) error {
-			// Baris kas potongan agregat (punya tutup_tabungan_id).
-			if err := tx.Where("tutup_tabungan_id = ?", tutup.ID).Delete(&models.KasPemasukan{}).Error; err != nil {
+			// Baris kas pengeluaran "pencairan tabungan" (punya tutup_tabungan_id).
+			if err := tx.Where("tutup_tabungan_id = ?", tutup.ID).Delete(&models.KasPengeluaran{}).Error; err != nil {
 				return err
 			}
 			// Pelunasan SPP dari tutup: hapus baris kas + pembayaran, recompute status.

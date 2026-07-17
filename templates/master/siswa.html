@@ -5,27 +5,22 @@
 <div class="rounded-xl border border-slate-200 bg-white">
   <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
     <h3 class="font-semibold text-slate-800">Siswa</h3>
-    <button hx-get="/master/siswa/new" hx-target="#modal-root" hx-swap="innerHTML"
-            class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700">
-      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-      Tambah
-    </button>
+    <div class="flex items-center gap-2">
+      <button hx-get="/master/siswa/import" hx-target="#modal-root" hx-swap="innerHTML"
+              class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+        Import
+      </button>
+      <button hx-get="/master/siswa/new" hx-target="#modal-root" hx-swap="innerHTML"
+              class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Tambah
+      </button>
+    </div>
   </div>
-  <div class="overflow-x-auto">
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100">
-          <th class="px-5 py-3 font-medium">NIS</th>
-          <th class="px-5 py-3 font-medium">Nama</th>
-          <th class="px-5 py-3 font-medium">Kelas</th>
-          <th class="px-5 py-3 font-medium">Status</th>
-          <th class="px-5 py-3 font-medium text-right">Aksi</th>
-        </tr>
-      </thead>
-      <tbody id="siswa-rows" class="divide-y divide-slate-100">
-        {{ template "master/siswa_rows" dict "List" .List }}
-      </tbody>
-    </table>
+
+  <div id="siswa-content">
+    {{ template "master/siswa_table" . }}
   </div>
 </div>
 
@@ -33,10 +28,32 @@
 {{ end }}
 
 
+{{ define "master/siswa_table" }}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100">
+        <th class="px-5 py-3 font-medium">NIS</th>
+        <th class="px-5 py-3 font-medium">Nama</th>
+        <th class="px-5 py-3 font-medium">Kelas</th>
+        <th class="px-5 py-3 font-medium">Status</th>
+        <th class="px-5 py-3 font-medium text-right">Aksi</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {{ template "master/siswa_rows" dict "List" .List "Page" .Page }}
+    </tbody>
+  </table>
+</div>
+{{ template "master/siswa_pagination" . }}
+{{ end }}
+
+
 {{ define "master/siswa_rows" }}
 {{ if not .List }}
 <tr><td colspan="5" class="px-5 py-10 text-center text-slate-400">Belum ada siswa.</td></tr>
 {{ end }}
+{{ $page := .Page }}
 {{ range .List }}
 <tr class="hover:bg-slate-50">
   <td class="px-5 py-3 font-mono text-slate-600">{{ .NIS }}</td>
@@ -51,9 +68,9 @@
   </td>
   <td class="px-5 py-3">
     <div class="flex items-center justify-end gap-1">
-      <button hx-get="/master/siswa/{{ .ID }}/edit" hx-target="#modal-root" hx-swap="innerHTML"
+      <button hx-get="/master/siswa/{{ .ID }}/edit?page={{ $page }}" hx-target="#modal-root" hx-swap="innerHTML"
               class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-50">Edit</button>
-      <button hx-delete="/master/siswa/{{ .ID }}" hx-swap="none"
+      <button hx-delete="/master/siswa/{{ .ID }}?page={{ $page }}" hx-swap="none"
               hx-confirm="Hapus siswa “{{ .Nama }}”?"
               class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50">Hapus</button>
     </div>
@@ -63,8 +80,38 @@
 {{ end }}
 
 
-{{ define "master/siswa_rows_oob" }}
-<tbody id="siswa-rows" hx-swap-oob="true" class="divide-y divide-slate-100">
-  {{ template "master/siswa_rows" dict "List" .List }}
-</tbody>
+{{ define "master/siswa_pagination" }}
+<div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3 border-t border-slate-100">
+  <p class="text-xs text-slate-500">
+    {{ if .Total }}Menampilkan {{ .From }}–{{ .To }} dari {{ .Total }} siswa{{ else }}Tidak ada data{{ end }}
+  </p>
+  {{ if gt .TotalPages 1 }}
+  <nav class="flex items-center gap-1">
+    <button {{ if le .Page 1 }}disabled{{ end }}
+            hx-get="/master/siswa?page={{ .PrevPage }}" hx-target="#siswa-content" hx-swap="innerHTML"
+            class="rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none">
+      Sebelumnya
+    </button>
+    {{ $cur := .Page }}
+    {{ range .Pages }}
+    <button hx-get="/master/siswa?page={{ . }}" hx-target="#siswa-content" hx-swap="innerHTML"
+            class="min-w-[2.25rem] rounded-lg px-3 py-1.5 text-sm {{ if eq . $cur }}bg-primary-600 text-white font-semibold{{ else }}text-slate-600 hover:bg-slate-100{{ end }}">
+      {{ . }}
+    </button>
+    {{ end }}
+    <button {{ if ge .Page .TotalPages }}disabled{{ end }}
+            hx-get="/master/siswa?page={{ .NextPage }}" hx-target="#siswa-content" hx-swap="innerHTML"
+            class="rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none">
+      Berikutnya
+    </button>
+  </nav>
+  {{ end }}
+</div>
+{{ end }}
+
+
+{{ define "master/siswa_content_oob" }}
+<div id="siswa-content" hx-swap-oob="true">
+  {{ template "master/siswa_table" . }}
+</div>
 {{ end }}
