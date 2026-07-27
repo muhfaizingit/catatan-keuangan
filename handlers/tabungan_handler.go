@@ -452,6 +452,7 @@ func (h *TabunganHandler) BulkForm(c *gin.Context) {
 		"SiswaList": h.siswaByKelas(kelasID),
 		"Persen":    models.PersenPotonganTabungan(h.DB),
 		"Today":     time.Now().Format("2006-01-02"),
+		"JumlahMap": map[string]string{},
 	})
 }
 
@@ -466,74 +467,102 @@ func (h *TabunganHandler) siswaByKelas(kelasID uint64) []models.Siswa {
 // BulkSiswaOptions memuat ulang daftar siswa saat kelas berubah.
 func (h *TabunganHandler) BulkSiswaOptions(c *gin.Context) {
 	kelasID, _ := strconv.ParseUint(c.Query("kelas"), 10, 64)
-	c.HTML(http.StatusOK, "tabungan/bulk_siswa_options", gin.H{"SiswaList": h.siswaByKelas(kelasID)})
+	c.HTML(http.StatusOK, "tabungan/bulk_siswa_options", gin.H{
+		"SiswaList": h.siswaByKelas(kelasID),
+		"JumlahMap": map[string]string{},
+	})
 }
 
-func (h *TabunganHandler) bulkFormErr(c *gin.Context, msg string) {
+func (h *TabunganHandler) bulkFormErr(c *gin.Context, msg string, jumlahMap map[string]string) {
 	ta, hasTA := h.activeTA()
 	kelasList := []models.Kelas{}
 	if hasTA {
 		kelasList = h.kelasByTA(ta.ID)
 	}
 	kelasID, _ := strconv.ParseUint(c.PostForm("kelas"), 10, 64)
+	if jumlahMap == nil {
+		jumlahMap = map[string]string{}
+	}
 	c.HTML(http.StatusOK, "tabungan/bulk_form", gin.H{
 		"Title": "Setor Bulk per Kelas", "Error": msg, "HasTA": hasTA,
 		"KelasList": kelasList, "SelectedKelas": kelasID,
 		"SiswaList": h.siswaByKelas(kelasID),
 		"Persen":    models.PersenPotonganTabungan(h.DB),
 		"Today":     time.Now().Format("2006-01-02"),
-		"Jumlah":    c.PostForm("jumlah"),
+		"JumlahMap": jumlahMap,
 	})
 }
 
 func (h *TabunganHandler) Bulk(c *gin.Context) {
 	ta, hasTA := h.activeTA()
 	if !hasTA {
-		h.bulkFormErr(c, "Belum ada tahun ajaran aktif.")
+		h.bulkFormErr(c, "Belum ada tahun ajaran aktif.", nil)
 		return
 	}
 	if h.isClosed(ta.ID) {
-		h.bulkFormErr(c, "Tabungan tahun ajaran ini sudah ditutup.")
+		h.bulkFormErr(c, "Tabungan tahun ajaran ini sudah ditutup.", nil)
 		return
 	}
 	kelasID, _ := strconv.ParseUint(c.PostForm("kelas"), 10, 64)
-	setor := util.ParseRupiah(c.PostForm("jumlah"))
-	if setor <= 0 {
-		h.bulkFormErr(c, "Jumlah setoran harus lebih dari 0.")
-		return
-	}
 	tanggal := util.ParseDate(c.PostForm("tanggal"), time.Now())
 	persen := models.PersenPotonganTabungan(h.DB)
 
-	var siswaIDs []uint64
+	// Nominal per siswa (jumlah[<id>]). Siswa tanpa input dianggap 0.
+	jumlahMap := map[string]string{}
 	for _, s := range c.PostFormArray("siswa") {
-		if id, err := strconv.ParseUint(s, 10, 64); err == nil {
-			siswaIDs = append(siswaIDs, id)
-		}
+		jumlahMap[s] = c.PostForm("jumlah[" + s + "]")
 	}
-	if len(siswaIDs) == 0 {
-		h.bulkFormErr(c, "Pilih minimal satu siswa.")
+	if len(jumlahMap) == 0 {
+		h.bulkFormErr(c, "Pilih minimal satu siswa.", jumlahMap)
 		return
 	}
 
 	userID := ctxUserID(c)
+	type item struct {
+		siswa models.Siswa
+		setor int64
+	}
+	var items []item
+	var zeroCount int
+	for _, s := range c.PostFormArray("siswa") {
+		sid, err := strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			continue
+		}
+		setor := util.ParseRupiah(c.PostForm("jumlah[" + s + "]"))
+		if setor <= 0 {
+			zeroCount++
+			continue
+		}
+		var siswa models.Siswa
+		if h.DB.First(&siswa, sid).Error != nil {
+			h.bulkFormErr(c, "Siswa tidak ditemukan.", jumlahMap)
+			return
+		}
+		items = append(items, item{siswa: siswa, setor: setor})
+	}
+	if len(items) == 0 {
+		if zeroCount > 0 {
+			h.bulkFormErr(c, "Jumlah setoran setiap siswa harus lebih dari 0.", jumlahMap)
+		} else {
+			h.bulkFormErr(c, "Pilih minimal satu siswa.", jumlahMap)
+		}
+		return
+	}
+
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
-		for _, sid := range siswaIDs {
-			var siswa models.Siswa
-			if err := tx.First(&siswa, sid).Error; err != nil {
-				return err
-			}
-			if err := h.recordSetoran(tx, siswa, ta.ID, setor, persen, tanggal, c.PostForm("keterangan"), userID); err != nil {
+		for _, it := range items {
+			if err := h.recordSetoran(tx, it.siswa, ta.ID, it.setor, persen, tanggal, c.PostForm("keterangan"), userID); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		h.bulkFormErr(c, "Gagal menyimpan setoran bulk.")
+		h.bulkFormErr(c, "Gagal menyimpan setoran bulk.", jumlahMap)
 		return
 	}
-	c.Header("HX-Trigger", `{"toast":{"type":"success","msg":"Setoran bulk tersimpan untuk `+strconv.Itoa(len(siswaIDs))+` siswa."}}`)
+	c.Header("HX-Trigger", `{"toast":{"type":"success","msg":"Setoran bulk tersimpan untuk `+strconv.Itoa(len(items))+` siswa."}}`)
 	h.refresh(c, kelasID)
 }
 
