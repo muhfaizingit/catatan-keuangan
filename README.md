@@ -1,3 +1,7 @@
+**School financial management SaaS built with Go, Gin, GORM, and MySQL** (server-rendered HTML with HTMX & Tailwind). Handles multi-year academic periods, tuition (SPP) billing with partial payments, student savings accounts with configurable deduction rules, donor-funded aid allocation, receivables tracking, and role-based access control (admin/treasurer/principal). Every cash transaction that touches the ledger — payments, deductions, donations — is auto-posted and reconciled, with year-end closing that locks the old period and carries balances forward.
+
+---
+
 # Keuangan Sekolah
 
 Aplikasi pencatatan keuangan sekolah berbasis web (Go + Gin + GORM + MySQL, server-side HTML dengan HTMX & Tailwind).
